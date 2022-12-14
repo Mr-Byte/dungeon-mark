@@ -1,3 +1,3 @@
-fn main() {
-    println!("Hello, world!");
-}
+use dungeon_mark;
+
+fn main() {}
