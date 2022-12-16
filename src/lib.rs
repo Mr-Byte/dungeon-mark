@@ -4,6 +4,9 @@
 
 #![deny(rust_2018_idioms)]
 
+mod cmark;
+mod parser;
+
 pub mod compendium;
 pub mod config;
 pub mod preprocessor;

@@ -1,13 +1,25 @@
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
-use std::{iter::Peekable, path::PathBuf};
+use std::{path::PathBuf, str::FromStr};
 
-use crate::error::Result;
+use crate::{
+    cmark::EventCollectionExt,
+    error::{Error, Result},
+    parser::MarkdownParser,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Journal {
     pub title: Option<String>,
     pub entries: Vec<JournalEntry>,
+}
+
+impl FromStr for Journal {
+    type Err = Error;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        JournalParser::new(source).parse()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,35 +42,18 @@ impl From<Link> for JournalEntry {
 }
 
 struct JournalParser<'a> {
-    source: &'a str,
-    events: Peekable<pulldown_cmark::OffsetIter<'a, 'a>>,
-    offset: usize,
+    parser: MarkdownParser<'a>,
 }
 
 impl<'a> JournalParser<'a> {
     fn new(source: &str) -> JournalParser<'_> {
-        let events = pulldown_cmark::Parser::new(source)
-            .into_offset_iter()
-            .peekable();
+        let parser = MarkdownParser::new(source);
 
-        JournalParser {
-            source,
-            events,
-            offset: 0,
-        }
-    }
-
-    fn position(&self) -> Position {
-        let previous = self.source[..self.offset].as_bytes();
-        let line = memchr::Memchr::new(b'\n', previous).count() + 1;
-        let start_of_line = memchr::memrchr(b'\n', previous).unwrap_or(0);
-        let column = self.source[start_of_line..self.offset].chars().count();
-
-        Position { line, column }
+        JournalParser { parser }
     }
 
     fn parse(mut self) -> Result<Journal> {
-        let title = self.parse_title();
+        let title = self.parse_title()?;
 
         Ok(Journal {
             title,
@@ -66,62 +61,26 @@ impl<'a> JournalParser<'a> {
         })
     }
 
-    fn parse_title(&mut self) -> Option<String> {
+    fn parse_title<'b>(&'b mut self) -> Result<Option<String>> {
         loop {
-            let event = self.peek_event();
+            let event = self.parser.peek_event();
             match event {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     // NOTE: Skip the start tag that was peeked.
-                    self.next_event();
-                    let mut events = Vec::new();
+                    self.parser.next_event();
+                    let events = self.parser.collect_until(|event| {
+                        matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
+                    });
 
-                    loop {
-                        match self.next_event() {
-                            Some(Event::End(Tag::Heading(HeadingLevel::H1, ..))) => break,
-                            Some(other) => events.push(other),
-                            None => break,
-                        }
-                    }
-
-                    let title = convert_events_to_string(events);
-
-                    return Some(title);
+                    return Ok(Some(events.stringify()?));
                 }
                 Some(Event::Html(_)) => {
-                    self.next_event(); // Skip HTML, such as comments.
+                    self.parser.next_event(); // Skip HTML, such as comments.
                 }
-                _ => return None,
+                _ => return Ok(None),
             }
         }
     }
-
-    fn peek_event(&mut self) -> Option<&Event<'a>> {
-        self.events.peek().map(|(event, _)| event)
-    }
-
-    fn next_event(&mut self) -> Option<Event<'a>> {
-        self.events.next().map(|(event, range)| {
-            self.offset = range.start;
-            event
-        })
-    }
-}
-
-fn convert_events_to_string(events: Vec<Event<'_>>) -> String {
-    events
-        .into_iter()
-        .filter_map(|event| match event {
-            Event::Text(text) | Event::Code(text) => Some(text.into_string()),
-            Event::SoftBreak => Some(String::from(" ")),
-            _ => None,
-        })
-        .collect()
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Position {
-    pub line: usize,
-    pub column: usize,
 }
 
 #[cfg(test)]
@@ -131,9 +90,7 @@ mod test {
     #[test]
     fn parses_title() {
         let input = "# Journal Title";
-        let journal = JournalParser::new(input)
-            .parse()
-            .expect("journal did not parse");
+        let journal: Journal = input.parse().expect("journal failed to parse");
 
         assert_eq!(
             "Journal Title",
@@ -146,9 +103,7 @@ mod test {
         let input = r"<!-- # Journal Title -->
 # Actual Title
 ";
-        let journal = JournalParser::new(input)
-            .parse()
-            .expect("journal did not parse");
+        let journal: Journal = input.parse().expect("journal failed to parse");
 
         assert_eq!(
             "Actual Title",
