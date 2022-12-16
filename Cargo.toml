@@ -8,6 +8,7 @@ repository = "https://github.com/Mr-Byte/dungeon-mark"
 [dependencies]
 anyhow = "1.0"
 clap = "4.0"
+memchr = "2.5"
 serde_json = "1.0"
 toml = "0.5"
 
