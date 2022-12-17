@@ -1,14 +1,8 @@
-//! All documents in a book go through:
-//!     Preprocessor -> Document Tree Generator -> Section Processor -> Renderer
-//!
-
 #![deny(rust_2018_idioms)]
 
-mod cmark;
-mod parser;
-
-pub mod compendium;
+pub mod cmark;
 pub mod config;
+pub mod journal;
 pub mod preprocessor;
 pub mod renderer;
 

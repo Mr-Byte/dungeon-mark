@@ -1,3 +1,9 @@
+//! Useful utilities for parsing and working with CommonMark files.
+
+mod parser;
+
+pub use parser::*;
+
 use pulldown_cmark::Event;
 use pulldown_cmark_to_cmark::cmark;
 

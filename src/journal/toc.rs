@@ -3,18 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, str::FromStr};
 
 use crate::{
-    cmark::EventCollectionExt,
+    cmark::{CMarkParser, EventCollectionExt},
     error::{Error, Result},
-    parser::MarkdownParser,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Journal {
+pub struct TableOfContents {
     pub title: Option<String>,
-    pub entries: Vec<JournalEntry>,
+    pub items: Vec<TOCItem>,
 }
 
-impl FromStr for Journal {
+impl FromStr for TableOfContents {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -26,56 +25,56 @@ impl FromStr for Journal {
 pub struct Link {
     pub name: String,
     pub location: Option<PathBuf>,
-    pub nested_entries: Vec<JournalEntry>,
+    pub nested_entries: Vec<TOCItem>,
 }
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum JournalEntry {
+pub enum TOCItem {
     Link(Link),
 }
 
-impl From<Link> for JournalEntry {
+impl From<Link> for TOCItem {
     fn from(link: Link) -> Self {
-        JournalEntry::Link(link)
+        TOCItem::Link(link)
     }
 }
 
 struct JournalParser<'a> {
-    parser: MarkdownParser<'a>,
+    parser: CMarkParser<'a>,
 }
 
 impl<'a> JournalParser<'a> {
     fn new(source: &str) -> JournalParser<'_> {
-        let parser = MarkdownParser::new(source);
+        let parser = CMarkParser::new(source);
 
         JournalParser { parser }
     }
 
-    fn parse(mut self) -> Result<Journal> {
+    fn parse(mut self) -> Result<TableOfContents> {
         let title = self.parse_title()?;
 
-        Ok(Journal {
+        Ok(TableOfContents {
             title,
-            entries: Vec::new(),
+            items: Vec::new(),
         })
     }
 
     fn parse_title<'b>(&'b mut self) -> Result<Option<String>> {
         loop {
-            let event = self.parser.peek_event();
+            let event = self.parser.peek();
             match event {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     // NOTE: Skip the start tag that was peeked.
-                    self.parser.next_event();
-                    let events = self.parser.collect_until(|event| {
+                    self.parser.next();
+                    let events = self.parser.consume_until(|event| {
                         matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
                     });
 
                     return Ok(Some(events.stringify()?));
                 }
                 Some(Event::Html(_)) => {
-                    self.parser.next_event(); // Skip HTML, such as comments.
+                    self.parser.next(); // Skip HTML, such as comments.
                 }
                 _ => return Ok(None),
             }
@@ -90,7 +89,7 @@ mod test {
     #[test]
     fn parses_title() {
         let input = "# Journal Title";
-        let journal: Journal = input.parse().expect("journal failed to parse");
+        let journal: TableOfContents = input.parse().expect("journal failed to parse");
 
         assert_eq!(
             "Journal Title",
@@ -103,7 +102,7 @@ mod test {
         let input = r"<!-- # Journal Title -->
 # Actual Title
 ";
-        let journal: Journal = input.parse().expect("journal failed to parse");
+        let journal: TableOfContents = input.parse().expect("journal failed to parse");
 
         assert_eq!(
             "Actual Title",

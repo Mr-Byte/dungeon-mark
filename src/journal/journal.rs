@@ -2,21 +2,21 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::compendium::{Document, Journal};
 use crate::error::Result;
+use crate::journal::{JournalEntry, TableOfContents};
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Compendium {
-    pub journal: Journal,
-    pub documents: Vec<Document>,
+pub struct Journal {
+    pub table_of_contents: TableOfContents,
+    pub documents: Vec<JournalEntry>,
 }
 
-impl Compendium {
+impl Journal {
     pub(crate) fn load(
         _root: impl Into<PathBuf>,
         _config: crate::config::Config,
-    ) -> Result<Compendium> {
+    ) -> Result<Journal> {
         todo!()
     }
 }

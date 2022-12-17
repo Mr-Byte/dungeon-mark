@@ -1,18 +1,22 @@
-use pulldown_cmark::{Event, OffsetIter, Parser};
+use pulldown_cmark::{Event, OffsetIter, Options, Parser};
 
 use std::iter::Peekable;
 
-pub struct MarkdownParser<'a> {
+pub struct CMarkParser<'a> {
     source: &'a str,
     events: Peekable<OffsetIter<'a, 'a>>,
     offset: usize,
 }
 
-impl<'a> MarkdownParser<'a> {
-    pub fn new(source: &str) -> MarkdownParser<'_> {
+impl<'a> CMarkParser<'a> {
+    pub fn new(source: &str) -> CMarkParser<'_> {
+        let mut options = Options::empty();
+        options.insert(Options::ENABLE_STRIKETHROUGH);
+        options.insert(Options::ENABLE_TABLES);
+
         let events = Parser::new(source).into_offset_iter().peekable();
 
-        MarkdownParser {
+        CMarkParser {
             source,
             events,
             offset: 0,
@@ -29,13 +33,13 @@ impl<'a> MarkdownParser<'a> {
         Position { line, column }
     }
 
-    /// Peek the next event in the stream without consume it.
-    pub fn peek_event(&mut self) -> Option<&Event<'a>> {
+    /// Peek the next event in the stream without consuming it.
+    pub fn peek(&mut self) -> Option<&Event<'a>> {
         self.events.peek().map(|(event, _)| event)
     }
 
     /// Consume the next event in stream.
-    pub fn next_event(&mut self) -> Option<Event<'a>> {
+    pub fn next(&mut self) -> Option<Event<'a>> {
         self.events.next().map(|(event, range)| {
             self.offset = range.start;
             event
@@ -43,11 +47,11 @@ impl<'a> MarkdownParser<'a> {
     }
 
     /// Consumes all events up to and including the delimeter and returns all events before the matched delimeter.
-    pub fn collect_until(&mut self, delimeter: impl Fn(&Event<'a>) -> bool) -> Vec<Event<'a>> {
+    pub fn consume_until(&mut self, delimeter: impl Fn(&Event<'a>) -> bool) -> Vec<Event<'a>> {
         let mut events = Vec::new();
 
         loop {
-            match self.next_event() {
+            match self.next() {
                 Some(event) if delimeter(&event) => break,
                 Some(other) => events.push(other),
                 None => break,

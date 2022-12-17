@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{compendium::Compendium, error::Result};
+use crate::{error::Result, journal::Journal};
 
 pub trait Preprocessor {
     fn name(&self) -> &str;
 
-    fn run(&self, ctx: &PreprocessorContext, compendium: Compendium) -> Result<Compendium>;
+    fn run(&self, ctx: &PreprocessorContext, journal: Journal) -> Result<Journal>;
 
     // TODO: Do I need to add a "supports renderer" method?
 }
