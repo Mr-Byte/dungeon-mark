@@ -409,6 +409,35 @@ mod test {
     }
 
     #[test]
+    fn lists_all_top_level_links_with_nested_links_separated_by_second_level_heading() {
+        let input = r#"
+* [Entry 1](entry1.md)
+  * [Subentry 1](sub_entry1.md)
+## Next Section
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: vec![TOCItem::Link(Link {
+                    name: String::from("Subentry 1"),
+                    location: Some(PathBuf::from("sub_entry1.md")),
+                    nested_items: Vec::new(),
+                })],
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
     fn lists_all_top_level_links_separated_by_heading_and_paragraph() {
         let input = r#"
 * [Entry 1](entry1.md)
