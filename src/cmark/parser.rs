@@ -47,18 +47,16 @@ impl<'a> CMarkParser<'a> {
     }
 
     /// Consumes all events up to and including the delimeter and returns all events before the matched delimeter.
-    pub fn consume_until(&mut self, delimeter: impl Fn(&Event<'a>) -> bool) -> Vec<Event<'a>> {
-        let mut events = Vec::new();
-
-        loop {
-            match self.next_event() {
-                Some(event) if delimeter(&event) => break,
-                Some(other) => events.push(other),
-                None => break,
-            }
-        }
-
-        events
+    pub fn collect_until<B>(&mut self, delimeter: impl Fn(&Event<'a>) -> bool) -> B
+    where
+        B: FromIterator<Event<'a>>,
+    {
+        std::iter::from_fn(|| match self.next_event() {
+            Some(event) if delimeter(&event) => None,
+            Some(event) => Some(event),
+            None => None,
+        })
+        .collect()
     }
 }
 

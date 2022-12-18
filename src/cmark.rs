@@ -2,6 +2,8 @@
 
 mod parser;
 
+use std::borrow::Borrow;
+
 pub use parser::*;
 
 use pulldown_cmark::Event;
@@ -9,19 +11,20 @@ use pulldown_cmark_to_cmark::cmark;
 
 use crate::error::Result;
 
-pub trait EventCollectionExt {
+pub trait EventIteratorExt {
     /// Consume an event collection and return a stringified representation.
     fn stringify(self) -> Result<String>;
 }
 
-impl<'a, T> EventCollectionExt for T
+impl<'a, I, E> EventIteratorExt for I
 where
-    T: IntoIterator<Item = Event<'a>>,
+    I: Iterator<Item = E>,
+    E: Borrow<Event<'a>>,
 {
     fn stringify(self) -> Result<String> {
         // TODO: Is there a safe default buffer capacity? Does it matter?
         let mut buffer = String::new();
-        cmark(self.into_iter(), &mut buffer)?;
+        cmark(self, &mut buffer)?;
 
         Ok(buffer)
     }

@@ -1,25 +1,38 @@
 use anyhow::{anyhow, bail, Context};
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf, str::FromStr};
+use std::{fmt::Display, fs::File, io::Read, path::PathBuf};
 
 use crate::{
-    cmark::{CMarkParser, EventCollectionExt},
+    cmark::{CMarkParser, EventIteratorExt},
+    config::Config,
     error::{Error, Result},
 };
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableOfContents {
+    /// An optional title for the TOC.
     pub title: Option<String>,
+    /// All items making up the TOC.
     pub items: Vec<TOCItem>,
 }
 
-impl FromStr for TableOfContents {
-    type Err = Error;
+impl TableOfContents {
+    pub fn load(config: &Config) -> Result<Self> {
+        let journal_path = config.journal.source.join("JOURNAL.md");
+        let mut buffer = String::new();
 
-    fn from_str(source: &str) -> Result<Self, Self::Err> {
-        TOCParser::new(source).parse()
+        File::open(journal_path)
+            .with_context(|| "failed to open JOURNAL.md")?
+            .read_to_string(&mut buffer)
+            .with_context(|| "failed to read JOURNAL.md")?;
+
+        let (title, items) = TOCParser::new(&buffer)
+            .parse()
+            .with_context(|| "failed to parse JOURNAL.md")?;
+
+        Ok(Self { title, items })
     }
 }
 
@@ -94,11 +107,11 @@ impl<'a> TOCParser<'a> {
         Self { parser }
     }
 
-    fn parse(mut self) -> Result<TableOfContents> {
+    fn parse(mut self) -> Result<(Option<String>, Vec<TOCItem>)> {
         let title = self.parse_title()?;
         let items = self.parse_toc()?;
 
-        Ok(TableOfContents { title, items })
+        Ok((title, items))
     }
 
     fn parse_title(&mut self) -> Result<Option<String>> {
@@ -108,11 +121,11 @@ impl<'a> TOCParser<'a> {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     // NOTE: Skip the start tag that was peeked.
                     self.parser.next_event();
-                    let events = self.parser.consume_until(|event| {
+                    let events: Vec<_> = self.parser.collect_until(|event| {
                         matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
                     });
 
-                    return Ok(Some(events.stringify()?));
+                    return Ok(Some(events.iter().stringify()?));
                 }
                 Some(Event::Html(_)) => {
                     self.parser.next_event(); // Skip HTML, such as comments.
@@ -129,14 +142,14 @@ impl<'a> TOCParser<'a> {
             let title = match self.parser.peek_event() {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     self.parser.next_event();
-                    let events = self.parser.consume_until(|event| {
+                    let events: Vec<_> = self.parser.collect_until(|event| {
                         matches! {
                             event,
                             Event::End(Tag::Heading(HeadingLevel::H1, .. ))
                         }
                     });
 
-                    Some(events.stringify()?)
+                    Some(events.iter().stringify()?)
                 }
                 Some(_) => None,
                 None => break, // End of input, end parsing.
@@ -226,9 +239,9 @@ impl<'a> TOCParser<'a> {
 
     fn parse_link(&mut self, href: String) -> Result<Link> {
         let href = href.replace("%20", " ");
-        let name = self
+        let name: String = self
             .parser
-            .consume_until(|event| matches! {event, Event::End(Tag::Link(..))})
+            .collect_until::<Vec<_>>(|event| matches! {event, Event::End(Tag::Link(..))})
             .into_iter()
             .map(|event| match event {
                 Event::SoftBreak => Event::Text(" ".into()),
@@ -267,12 +280,17 @@ impl<'a> TOCParser<'a> {
 mod test {
     use super::*;
 
+    // Convenience function to parse out TOC.
+    fn parse(source: &str) -> (Option<String>, Vec<TOCItem>) {
+        TOCParser::new(source).parse().expect("TOC failed to parse")
+    }
+
     #[test]
     fn parses_title() {
         let input = "# Journal Title";
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let (title, _) = parse(input);
 
-        assert_eq!("Journal Title", toc.title.expect("toc title was empty"))
+        assert_eq!("Journal Title", title.expect("toc title was empty"))
     }
 
     #[test]
@@ -280,9 +298,9 @@ mod test {
         let input = r"<!-- # Journal Title -->
 # Actual Title
 ";
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let (title, _) = parse(input);
 
-        assert_eq!("Actual Title", toc.title.expect("toc title was empty"))
+        assert_eq!("Actual Title", title.expect("toc title was empty"))
     }
 
     #[test]
@@ -291,7 +309,7 @@ mod test {
 * [Entry 1](entry1.md)
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -305,7 +323,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -315,7 +333,7 @@ mod test {
 <!-- comment -->
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -329,7 +347,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -339,7 +357,8 @@ mod test {
 ---
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -354,7 +373,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -364,7 +383,8 @@ mod test {
 # Next Section
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -381,7 +401,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -391,7 +411,8 @@ mod test {
 ## Next Section
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -405,7 +426,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -416,7 +437,8 @@ mod test {
 ## Next Section
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -434,7 +456,7 @@ mod test {
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -445,7 +467,8 @@ mod test {
 This is a paragraph.
 * [Entry 2](entry2.md)
 "#;
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![
             TOCItem::Link(Link {
                 name: String::from("Entry 1"),
@@ -462,7 +485,7 @@ This is a paragraph.
             }),
         ];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
@@ -472,7 +495,7 @@ This is a paragraph.
   1. [Entry 2](entry2.md)
 "#;
 
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let (_, items) = parse(input);
         let expected = vec![TOCItem::Link(Link {
             name: String::from("Entry 1"),
             location: Some(PathBuf::from("entry1.md")),
@@ -483,19 +506,20 @@ This is a paragraph.
             })],
         })];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 
     #[test]
     fn link_titles_with_breaks_are_converted_to_spaces() {
         let input = "* [Entry\n1](entry1.md)";
-        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+
+        let (_, items) = parse(input);
         let expected = vec![TOCItem::Link(Link {
             name: String::from("Entry 1"),
             location: Some(PathBuf::from("entry1.md")),
             nested_items: Vec::new(),
         })];
 
-        assert_eq!(toc.items, expected);
+        assert_eq!(items, expected);
     }
 }

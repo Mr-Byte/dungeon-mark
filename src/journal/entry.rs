@@ -1,9 +1,12 @@
+use anyhow::Context;
+use pulldown_cmark::{Event, Tag};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
 use crate::{
-    cmark::CMarkParser,
-    error::{Error, Result},
+    cmark::{CMarkParser, EventIteratorExt as _},
+    config::Config,
+    error::Result,
 };
 
 /// A `Section` represents all text following a heading in a `JournalEntry`.
@@ -12,8 +15,8 @@ use crate::{
 /// current section will be a sibling section in the parent `Section` or `JournalEntry`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Section {
-    /// The name of the section as provided by the heading.
-    pub name: String,
+    /// The title of the section as provided by the heading.
+    pub title: String,
     /// All text that follows this section, excluding the text of any child sections
     /// or sibling sections.
     pub body: String,
@@ -28,16 +31,34 @@ pub struct Section {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
     /// The location of the document relative to the "source root" config option.
-    pub path: PathBuf,
+    pub source_path: PathBuf,
+    /// An optional top level journal entry body, which makes up any elements the preceed the first heading in the document.
+    pub body: Option<String>,
     /// The sections (delineated by Markdown headings) of the document.
     pub sections: Vec<Section>,
 }
 
-impl FromStr for JournalEntry {
-    type Err = Error;
+impl JournalEntry {
+    pub fn new(path: PathBuf, config: &Config) -> Result<Self> {
+        let mut buffer = String::new();
+        let entry_path = config.journal.source.join(&path);
 
-    fn from_str(source: &str) -> Result<Self, Self::Err> {
-        JournalEntryParser::new(source).parse()
+        File::open(&entry_path)
+            .with_context(|| format!("failed to open journal entry: {}", entry_path.display()))?
+            .read_to_string(&mut buffer)
+            .with_context(|| format!("failed to read journal entry: {}", entry_path.display()))?;
+
+        let (body, sections) = JournalEntryParser::new(&buffer)
+            .parse()
+            .with_context(|| format!("unable to parse journal entry: {}", entry_path.display()))?;
+
+        let entry = Self {
+            source_path: path,
+            body,
+            sections,
+        };
+
+        Ok(entry)
     }
 }
 
@@ -52,7 +73,55 @@ impl<'a> JournalEntryParser<'a> {
         }
     }
 
-    fn parse(mut self) -> Result<JournalEntry> {
-        todo!()
+    fn parse(mut self) -> Result<(Option<String>, Vec<Section>)> {
+        let body = self.parse_body()?;
+
+        Ok((body, Vec::new()))
+    }
+
+    fn parse_body(&mut self) -> Result<Option<String>> {
+        let mut events = Vec::new();
+
+        loop {
+            match self.parser.peek_event() {
+                Some(Event::Start(Tag::Heading(..))) => break,
+                Some(_) => {
+                    let event = self
+                        .parser
+                        .next_event()
+                        .expect("event was empty, when it shouldn't have been");
+                    events.push(event);
+                }
+                None => {
+                    self.parser.next_event();
+                    break;
+                }
+            }
+        }
+
+        let body = events
+            .iter()
+            .stringify()
+            .with_context(|| "failed to stringify journal entry body")?;
+        let body = if body.is_empty() { None } else { Some(body) };
+
+        Ok(body)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parses_top_level_body() {
+        let input = "Top level body.\nWith multiple lines.\n\nIncluding heard breaks.";
+        let (body, _) = JournalEntryParser::new(input)
+            .parse()
+            .expect("unable to parse input");
+
+        let expected = Some(String::from(input));
+
+        assert_eq!(body, expected)
     }
 }

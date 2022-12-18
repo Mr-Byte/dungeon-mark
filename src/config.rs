@@ -12,8 +12,8 @@ use crate::error::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Configuration for the compendium itself.
-    pub compendium: CompendiumConfig,
+    /// Configuration for the journal itself.
+    pub journal: JournalConfig,
 
     /// Any remaining configuration for renderers and preprocessors.
     rest: Value,
@@ -34,7 +34,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            compendium: CompendiumConfig::default(),
+            journal: JournalConfig::default(),
             rest: Value::Table(Table::default()),
         }
     }
@@ -50,7 +50,7 @@ impl FromStr for Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "kebab-case")]
-pub struct CompendiumConfig {
+pub struct JournalConfig {
     /// Optional title for the compendium.
     pub title: Option<String>,
     /// List of authors for the compendium.
@@ -61,13 +61,13 @@ pub struct CompendiumConfig {
     pub source: PathBuf,
 }
 
-impl Default for CompendiumConfig {
+impl Default for JournalConfig {
     fn default() -> Self {
         Self {
             title: None,
             authors: Vec::new(),
             description: None,
-            source: PathBuf::from("compendium"),
+            source: PathBuf::from("./src"),
         }
     }
 }
