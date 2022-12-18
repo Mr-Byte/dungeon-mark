@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Context};
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, path::PathBuf, str::FromStr};
@@ -8,6 +8,7 @@ use crate::{
     error::{Error, Result},
 };
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableOfContents {
     pub title: Option<String>,
@@ -22,7 +23,8 @@ impl FromStr for TableOfContents {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Link {
     pub name: String,
     pub location: Option<PathBuf>,
@@ -30,9 +32,21 @@ pub struct Link {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SectionTitle {
+    pub title: String,
+}
+
+/// A table of contents item which is either a link, a separator, or a section title.
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TOCItem {
+    /// A link to a journal entry, including nested entries.
     Link(Link),
+    /// Section title for a portion of the table of contents.
+    SectionTitle(SectionTitle),
+    /// A separator between unnamed sections.
+    Separator,
 }
 
 impl TOCItem {
@@ -49,6 +63,24 @@ impl TOCItem {
             _ => None,
         }
     }
+
+    pub fn maybe_section_title_mut(&mut self) -> Option<&mut SectionTitle> {
+        match self {
+            TOCItem::SectionTitle(ref mut title) => Some(title),
+            _ => None,
+        }
+    }
+
+    pub fn maybe_section_title(&self) -> Option<&SectionTitle> {
+        match self {
+            TOCItem::SectionTitle(ref title) => Some(title),
+            _ => None,
+        }
+    }
+
+    pub fn is_separator(&self) -> bool {
+        matches! { self, TOCItem::Separator }
+    }
 }
 
 struct TOCParser<'a> {
@@ -56,26 +88,26 @@ struct TOCParser<'a> {
 }
 
 impl<'a> TOCParser<'a> {
-    fn new(source: &str) -> TOCParser<'_> {
+    fn new(source: &'a str) -> Self {
         let parser = CMarkParser::new(source);
 
-        TOCParser { parser }
+        Self { parser }
     }
 
     fn parse(mut self) -> Result<TableOfContents> {
         let title = self.parse_title()?;
-        let items = self.parse_toc_items()?;
+        let items = self.parse_toc()?;
 
         Ok(TableOfContents { title, items })
     }
 
     fn parse_title(&mut self) -> Result<Option<String>> {
         loop {
-            let event = self.parser.peek();
+            let event = self.parser.peek_event();
             match event {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     // NOTE: Skip the start tag that was peeked.
-                    self.parser.next();
+                    self.parser.next_event();
                     let events = self.parser.consume_until(|event| {
                         matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
                     });
@@ -83,23 +115,62 @@ impl<'a> TOCParser<'a> {
                     return Ok(Some(events.stringify()?));
                 }
                 Some(Event::Html(_)) => {
-                    self.parser.next(); // Skip HTML, such as comments.
+                    self.parser.next_event(); // Skip HTML, such as comments.
                 }
                 _ => return Ok(None),
             }
         }
     }
 
+    fn parse_toc(&mut self) -> Result<Vec<TOCItem>> {
+        let mut toc_items = Vec::new();
+
+        loop {
+            let title = match self.parser.peek_event() {
+                Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
+                    self.parser.next_event();
+                    let events = self.parser.consume_until(|event| {
+                        matches! {
+                            event,
+                            Event::End(Tag::Heading(HeadingLevel::H1, .. ))
+                        }
+                    });
+
+                    Some(events.stringify()?)
+                }
+                Some(_) => None,
+                None => break, // End of input, end parsing.
+            };
+
+            if let Some(title) = title {
+                toc_items.push(TOCItem::SectionTitle(SectionTitle { title }));
+            }
+
+            let items = self
+                .parse_toc_items()
+                .with_context(|| "There was an error parsing TOC entries")?;
+
+            toc_items.extend(items);
+        }
+
+        Ok(toc_items)
+    }
+
     fn parse_toc_items(&mut self) -> Result<Vec<TOCItem>> {
         let mut items = Vec::new();
 
         loop {
-            match self.parser.next() {
+            match self.parser.peek_event() {
+                Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => break, // A new section is being started.
                 Some(Event::Start(Tag::Item)) => {
+                    self.parser.next_event();
+
                     let item = self.parse_toc_item()?;
                     items.push(item);
                 }
                 Some(Event::Start(Tag::List(..))) => {
+                    self.parser.next_event();
+
                     if items.is_empty() {
                         continue;
                     }
@@ -108,8 +179,26 @@ impl<'a> TOCParser<'a> {
                         last_item.nested_items = self.parse_toc_items()?;
                     }
                 }
-                Some(Event::End(Tag::List(..))) => break,
-                Some(_) => {}
+                Some(Event::End(Tag::List(..))) => {
+                    self.parser.next_event();
+                    break;
+                }
+                Some(Event::Start(other_tag)) => {
+                    let other_tag = other_tag.clone();
+
+                    while let Some(event) = self.parser.next_event() {
+                        if event == Event::End(other_tag.clone()) {
+                            break;
+                        }
+                    }
+                }
+                Some(Event::Rule) => {
+                    self.parser.next_event();
+                    items.push(TOCItem::Separator)
+                }
+                Some(_) => {
+                    self.parser.next_event();
+                }
                 None => break,
             }
         }
@@ -119,7 +208,7 @@ impl<'a> TOCParser<'a> {
 
     fn parse_toc_item(&mut self) -> Result<TOCItem> {
         loop {
-            match self.parser.next() {
+            match self.parser.next_event() {
                 Some(Event::Start(Tag::Paragraph)) => continue,
                 Some(Event::Start(Tag::Link(_, href, _))) => {
                     let link = self.parse_link(href.to_string())?;
@@ -140,6 +229,11 @@ impl<'a> TOCParser<'a> {
         let name = self
             .parser
             .consume_until(|event| matches! {event, Event::End(Tag::Link(..))})
+            .into_iter()
+            .map(|event| match event {
+                Event::SoftBreak => Event::Text(" ".into()),
+                other => other,
+            })
             .stringify()?;
 
         let location = if href.is_empty() {
@@ -198,16 +292,148 @@ mod test {
 * [Entry 2](entry2.md)
 "#;
         let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
 
-        assert_eq!(2, toc.items.len());
-        assert!(matches! { &toc.items[0], TOCItem::Link(Link { name, .. }) if name == "Entry 1" });
-        assert!(
-            matches! { &toc.items[0], TOCItem::Link(Link { location: Some(location), .. }) if location.ends_with("entry1.md") }
-        );
-        assert!(matches! { &toc.items[1], TOCItem::Link(Link { name, .. }) if name == "Entry 2" });
-        assert!(
-            matches! { &toc.items[1], TOCItem::Link(Link { location: Some(location), .. }) if location.ends_with("entry2.md") }
-        );
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
+    fn lists_all_top_level_links_separated_by_comments() {
+        let input = r#"
+* [Entry 1](entry1.md)
+<!-- comment -->
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
+    fn lists_all_top_level_links_separated_by_separator() {
+        let input = r#"
+* [Entry 1](entry1.md)
+---
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::Separator,
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
+    fn lists_all_top_level_links_separated_by_heading() {
+        let input = r#"
+* [Entry 1](entry1.md)
+# Next Section
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::SectionTitle(SectionTitle {
+                title: String::from("Next Section"),
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
+    fn lists_all_top_level_links_separated_by_second_level_heading() {
+        let input = r#"
+* [Entry 1](entry1.md)
+## Next Section
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
+    }
+
+    #[test]
+    fn lists_all_top_level_links_separated_by_heading_and_paragraph() {
+        let input = r#"
+* [Entry 1](entry1.md)
+# Next Section
+This is a paragraph.
+* [Entry 2](entry2.md)
+"#;
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![
+            TOCItem::Link(Link {
+                name: String::from("Entry 1"),
+                location: Some(PathBuf::from("entry1.md")),
+                nested_items: Vec::new(),
+            }),
+            TOCItem::SectionTitle(SectionTitle {
+                title: String::from("Next Section"),
+            }),
+            TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            }),
+        ];
+
+        assert_eq!(toc.items, expected);
     }
 
     #[test]
@@ -216,23 +442,31 @@ mod test {
 * [Entry 1](entry1.md)
   1. [Entry 2](entry2.md)
 "#;
+
         let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![TOCItem::Link(Link {
+            name: String::from("Entry 1"),
+            location: Some(PathBuf::from("entry1.md")),
+            nested_items: vec![TOCItem::Link(Link {
+                name: String::from("Entry 2"),
+                location: Some(PathBuf::from("entry2.md")),
+                nested_items: Vec::new(),
+            })],
+        })];
 
-        assert_eq!(1, toc.items.len());
-        assert!(matches! { &toc.items[0], TOCItem::Link(Link { name, .. }) if name == "Entry 1" });
-        assert!(
-            matches! { &toc.items[0], TOCItem::Link(Link { location: Some(location), .. }) if location.ends_with("entry1.md") }
-        );
+        assert_eq!(toc.items, expected);
+    }
 
-        let link = toc.items[0]
-            .maybe_link()
-            .expect("the item should be a link");
+    #[test]
+    fn link_titles_with_breaks_are_converted_to_spaces() {
+        let input = "* [Entry\n1](entry1.md)";
+        let toc: TableOfContents = input.parse().expect("toc failed to parse");
+        let expected = vec![TOCItem::Link(Link {
+            name: String::from("Entry 1"),
+            location: Some(PathBuf::from("entry1.md")),
+            nested_items: Vec::new(),
+        })];
 
-        assert!(
-            matches! { &link.nested_items[0], TOCItem::Link(Link { name, .. }) if name == "Entry 2" }
-        );
-        assert!(
-            matches! { &link.nested_items[0], TOCItem::Link(Link { location: Some(location), .. }) if location.ends_with("entry2.md") }
-        );
+        assert_eq!(toc.items, expected);
     }
 }

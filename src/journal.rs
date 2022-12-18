@@ -45,7 +45,7 @@ impl DMJournal {
         let journal = DMJournal {
             root,
             config,
-            journal: journal,
+            journal,
             _preprocessors: Vec::new(),
             _renderers: Vec::new(),
         };

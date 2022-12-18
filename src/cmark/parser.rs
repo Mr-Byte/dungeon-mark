@@ -34,12 +34,12 @@ impl<'a> CMarkParser<'a> {
     }
 
     /// Peek the next event in the stream without consuming it.
-    pub fn peek(&mut self) -> Option<&Event<'a>> {
+    pub fn peek_event(&mut self) -> Option<&Event<'a>> {
         self.events.peek().map(|(event, _)| event)
     }
 
     /// Consume the next event in stream.
-    pub fn next(&mut self) -> Option<Event<'a>> {
+    pub fn next_event(&mut self) -> Option<Event<'a>> {
         self.events.next().map(|(event, range)| {
             self.offset = range.start;
             event
@@ -51,7 +51,7 @@ impl<'a> CMarkParser<'a> {
         let mut events = Vec::new();
 
         loop {
-            match self.next() {
+            match self.next_event() {
                 Some(event) if delimeter(&event) => break,
                 Some(other) => events.push(other),
                 None => break,
