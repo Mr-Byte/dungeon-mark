@@ -39,7 +39,8 @@ pub struct JournalEntry {
 }
 
 impl JournalEntry {
-    pub fn new(path: PathBuf, config: &Config) -> Result<Self> {
+    /// Load a journal entry with the given path relative to the config's source root.
+    pub fn load(path: PathBuf, config: &Config) -> Result<Self> {
         let mut buffer = String::new();
         let entry_path = config.journal.source.join(&path);
 

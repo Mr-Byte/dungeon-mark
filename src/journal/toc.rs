@@ -19,6 +19,7 @@ pub struct TableOfContents {
 }
 
 impl TableOfContents {
+    /// Load the table of contents from JOURNAL.md relative to the config's source root.
     pub fn load(config: &Config) -> Result<Self> {
         let journal_path = config.journal.source.join("JOURNAL.md");
         let mut buffer = String::new();
@@ -39,14 +40,18 @@ impl TableOfContents {
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Link {
+    /// The name of the section this link points to.
     pub name: String,
+    /// An optional path (relative to the config's source root) pointed to by the link.
     pub location: Option<PathBuf>,
+    /// Any table of content items nested below this link.
     pub nested_items: Vec<TOCItem>,
 }
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SectionTitle {
+    /// The title for a section of the table of content provided by an H1 level heading.
     pub title: String,
 }
 
