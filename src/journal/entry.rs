@@ -139,7 +139,7 @@ impl<'a> JournalEntryParser<'a> {
         loop {
             match self.parser.next_event() {
                 Some(Event::Start(Tag::Heading(heading_level, ..))) => {
-                    let section = self.parse_section(heading_level.into())?;
+                    let section = self.parse_section(heading_level)?;
                     sections.push(section)
                 }
                 Some(_) => (), // TODO: Ignore for now!
@@ -150,7 +150,7 @@ impl<'a> JournalEntryParser<'a> {
         Ok(sections)
     }
 
-    fn parse_section(&mut self, level: SectionLevel) -> Result<Section> {
+    fn parse_section(&mut self, level: HeadingLevel) -> Result<Section> {
         let title = self
             .parser
             .iter_until_and_consume(|event| {
@@ -175,13 +175,10 @@ impl<'a> JournalEntryParser<'a> {
 
         loop {
             match self.parser.peek_event() {
-                Some(Event::Start(Tag::Heading(heading_level, ..)))
-                    if Into::<SectionLevel>::into(*heading_level) > level =>
-                {
-                    let section_level: SectionLevel = (*heading_level).into();
+                Some(Event::Start(Tag::Heading(heading_level, ..))) if *heading_level > level => {
+                    let heading_level = *heading_level;
                     self.parser.next_event();
-
-                    sections.push(self.parse_section(section_level)?);
+                    sections.push(self.parse_section(heading_level)?);
                 }
                 Some(_) => break,
                 None => break,
@@ -190,7 +187,7 @@ impl<'a> JournalEntryParser<'a> {
 
         Ok(Section {
             title,
-            level,
+            level: level.into(),
             body,
             metadata: HashMap::new(),
             sections,
