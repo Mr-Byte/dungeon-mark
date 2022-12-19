@@ -279,6 +279,42 @@ mod test {
     }
 
     #[test]
+    fn parses_top_level_sections_where_sections_have_h2_level() {
+        let input = "## First Top Level
+## Second Top Level
+## Third Top Level";
+        let (_, sections) = JournalEntryParser::new(input)
+            .parse()
+            .expect("unable to parse input");
+
+        let expected = vec![
+            Section {
+                title: String::from("First Top Level"),
+                level: SectionLevel::H2,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+            Section {
+                title: String::from("Second Top Level"),
+                level: SectionLevel::H2,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+            Section {
+                title: String::from("Third Top Level"),
+                level: SectionLevel::H2,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+        ];
+
+        assert_eq!(sections, expected)
+    }
+
+    #[test]
     fn parses_top_level_sections_with_nested_sections() {
         let input = "# First Top Level
 Test
