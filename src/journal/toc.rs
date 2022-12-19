@@ -1,7 +1,12 @@
 use anyhow::{anyhow, bail, Context};
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, fs::File, io::Read, path::PathBuf};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt},
@@ -10,7 +15,7 @@ use crate::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableOfContents {
-    /// An optional title for the TOC.:SMO
+    /// An optional title for the TOC.
     pub title: Option<String>,
     /// All items making up the TOC.
     pub items: Vec<TOCItem>,
@@ -18,18 +23,18 @@ pub struct TableOfContents {
 
 impl TableOfContents {
     /// Load the table of contents from JOURNAL.md relative to the provided path.
-    pub fn load(source_path: PathBuf) -> Result<Self> {
-        let journal_path = source_path.join("JOURNAL.md");
+    pub fn load(source_path: impl AsRef<Path>) -> Result<Self> {
+        let journal_path = source_path.as_ref().join("JOURNAL.md");
         let mut buffer = String::new();
 
-        File::open(journal_path)
-            .with_context(|| "failed to open JOURNAL.md")?
+        File::open(&journal_path)
+            .with_context(|| format!("Failed to open {}", journal_path.display()))?
             .read_to_string(&mut buffer)
-            .with_context(|| "failed to read JOURNAL.md")?;
+            .with_context(|| format!("Failed to read {}", journal_path.display()))?;
 
         let (title, items) = TOCParser::new(&buffer)
             .parse()
-            .with_context(|| "failed to parse JOURNAL.md")?;
+            .with_context(|| format!("Failed to parse {}", journal_path.display()))?;
 
         Ok(Self { title, items })
     }

@@ -54,30 +54,41 @@ pub struct Section {
 /// It is organized into sections based on headings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournalEntry {
-    /// The location of the document relative to the "source root" config option.
-    pub source_path: PathBuf,
-    /// An optional top level journal entry body, which makes up any elements the preceed the first heading in the document.
+    // The name of the journal entry.
+    pub name: String,
+    /// An optional top level journal entry body, which makes up any elementsthat preceed the first
+    /// heading in the journal entry.
     pub body: Option<String>,
-    /// The sections (delineated by Markdown headings) of the document.
+    /// The sections (delineated by Markdown headings) of the journal entry.
     pub sections: Vec<Section>,
+    /// The location of this journal entry relative to the `JOURNAL.md` file.
+    pub entry_path: Option<PathBuf>,
 }
 
 impl JournalEntry {
-    /// Load a journal entry with the given path relative to the config's source root.
-    pub fn load(source_path: PathBuf) -> Result<Self> {
+    /// Load a journal entry relative to the `source_path`.
+    pub fn load(
+        name: String,
+        source_path: impl Into<PathBuf>,
+        entry_path: impl Into<PathBuf>,
+    ) -> Result<Self> {
         let mut buffer = String::new();
+        let root_path = source_path.into();
+        let source_path = entry_path.into();
+        let file_path = root_path.join(&source_path);
 
-        File::open(&source_path)
-            .with_context(|| format!("failed to open journal entry: {}", source_path.display()))?
+        File::open(&file_path)
+            .with_context(|| format!("Failed to open journal entry: {}", file_path.display()))?
             .read_to_string(&mut buffer)
-            .with_context(|| format!("failed to read journal entry: {}", source_path.display()))?;
+            .with_context(|| format!("Failed to read journal entry: {}", file_path.display()))?;
 
         let (body, sections) = JournalEntryParser::new(&buffer)
             .parse()
-            .with_context(|| format!("unable to parse journal entry: {}", source_path.display()))?;
+            .with_context(|| format!("Unable to parse journal entry: {}", file_path.display()))?;
 
         let entry = Self {
-            source_path,
+            name,
+            entry_path: Some(source_path),
             body,
             sections,
         };

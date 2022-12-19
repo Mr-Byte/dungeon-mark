@@ -10,7 +10,7 @@ use toml::{value::Table, Value};
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     /// Configuration for the journal itself.
     pub journal: JournalConfig,
@@ -40,6 +40,33 @@ impl Default for Config {
     }
 }
 
+impl<'de> Deserialize<'de> for Config {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        let raw = Value::deserialize(deserializer)?;
+        let Value::Table(mut table) = raw else {
+            return Err(D::Error::custom("journal.toml must always be a toml table"));
+        };
+
+        let journal: JournalConfig = table
+            .remove("journal")
+            .map(|journal| journal.try_into().map_err(D::Error::custom))
+            .transpose()?
+            .unwrap_or_default();
+
+        let config = Config {
+            journal,
+            rest: Value::Table(table),
+        };
+
+        Ok(config)
+    }
+}
+
 impl FromStr for Config {
     type Err = Error;
 
@@ -48,7 +75,7 @@ impl FromStr for Config {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "kebab-case")]
 pub struct JournalConfig {
     /// Optional title for the compendium.
