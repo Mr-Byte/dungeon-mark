@@ -52,7 +52,7 @@ pub struct Section {
 
 /// A `JournalEntry` is an in-memory representation of a single Markdown file on disk.
 /// It is organized into sections based on headings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JournalEntry {
     // The name of the journal entry.
     pub name: String,

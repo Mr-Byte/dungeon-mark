@@ -54,7 +54,7 @@ fn load_journal_items(
     Ok(results)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum JournalItem {
     Entry(JournalEntry),
 }
