@@ -1,22 +1,46 @@
 use anyhow::Context;
-use pulldown_cmark::{Event, Tag};
+use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt as _},
-    config::Config,
     error::Result,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+pub enum SectionLevel {
+    H1 = 1,
+    H2,
+    H3,
+    H4,
+    H5,
+    H6,
+}
+
+impl From<HeadingLevel> for SectionLevel {
+    fn from(value: HeadingLevel) -> Self {
+        match value {
+            HeadingLevel::H1 => SectionLevel::H1,
+            HeadingLevel::H2 => SectionLevel::H2,
+            HeadingLevel::H3 => SectionLevel::H3,
+            HeadingLevel::H4 => SectionLevel::H4,
+            HeadingLevel::H5 => SectionLevel::H5,
+            HeadingLevel::H6 => SectionLevel::H6,
+        }
+    }
+}
 
 /// A `Section` represents all text following a heading in a `JournalEntry`.
 /// Any headings that have a lower-level than the `Section` that follow the section
 /// will be nested inside this section. Any `Section` with the same level as the
 /// current section will be a sibling section in the parent `Section` or `JournalEntry`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Section {
     /// The title of the section as provided by the heading.
     pub title: String,
+    /// The heading level of the section ranging from H1 to H6.
+    pub level: SectionLevel,
     /// All text that follows this section, excluding the text of any child sections
     /// or sibling sections.
     pub body: String,
@@ -40,21 +64,20 @@ pub struct JournalEntry {
 
 impl JournalEntry {
     /// Load a journal entry with the given path relative to the config's source root.
-    pub fn load(path: PathBuf, config: &Config) -> Result<Self> {
+    pub fn load(source_path: PathBuf) -> Result<Self> {
         let mut buffer = String::new();
-        let entry_path = config.journal.source.join(&path);
 
-        File::open(&entry_path)
-            .with_context(|| format!("failed to open journal entry: {}", entry_path.display()))?
+        File::open(&source_path)
+            .with_context(|| format!("failed to open journal entry: {}", source_path.display()))?
             .read_to_string(&mut buffer)
-            .with_context(|| format!("failed to read journal entry: {}", entry_path.display()))?;
+            .with_context(|| format!("failed to read journal entry: {}", source_path.display()))?;
 
         let (body, sections) = JournalEntryParser::new(&buffer)
             .parse()
-            .with_context(|| format!("unable to parse journal entry: {}", entry_path.display()))?;
+            .with_context(|| format!("unable to parse journal entry: {}", source_path.display()))?;
 
         let entry = Self {
-            source_path: path,
+            source_path,
             body,
             sections,
         };
@@ -76,8 +99,9 @@ impl<'a> JournalEntryParser<'a> {
 
     fn parse(mut self) -> Result<(Option<String>, Vec<Section>)> {
         let body = self.parse_body()?;
+        let sections = self.parse_sections()?;
 
-        Ok((body, Vec::new()))
+        Ok((body, sections))
     }
 
     fn parse_body(&mut self) -> Result<Option<String>> {
@@ -108,6 +132,70 @@ impl<'a> JournalEntryParser<'a> {
 
         Ok(body)
     }
+
+    fn parse_sections(&mut self) -> Result<Vec<Section>> {
+        let mut sections = Vec::new();
+
+        loop {
+            match self.parser.next_event() {
+                Some(Event::Start(Tag::Heading(heading_level, ..))) => {
+                    let section = self.parse_section(heading_level.into())?;
+                    sections.push(section)
+                }
+                Some(_) => (), // TODO: Ignore for now!
+                None => break,
+            }
+        }
+
+        Ok(sections)
+    }
+
+    fn parse_section(&mut self, level: SectionLevel) -> Result<Section> {
+        let title = self
+            .parser
+            .iter_until_and_consume(|event| {
+                matches! {
+                    event,
+                    Event::End(Tag::Heading(..))
+                }
+            })
+            .stringify()?;
+
+        let body = self
+            .parser
+            .iter_until(|event| {
+                matches! {
+                    event,
+                    Event::Start(Tag::Heading(..))
+                }
+            })
+            .stringify()?;
+
+        let mut sections = Vec::new();
+
+        loop {
+            match self.parser.peek_event() {
+                Some(Event::Start(Tag::Heading(heading_level, ..)))
+                    if Into::<SectionLevel>::into(*heading_level) > level =>
+                {
+                    let section_level: SectionLevel = (*heading_level).into();
+                    self.parser.next_event();
+
+                    sections.push(self.parse_section(section_level)?);
+                }
+                Some(_) => break,
+                None => break,
+            }
+        }
+
+        Ok(Section {
+            title,
+            level,
+            body,
+            metadata: HashMap::new(),
+            sections,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -124,5 +212,126 @@ mod test {
         let expected = Some(String::from(input));
 
         assert_eq!(body, expected)
+    }
+
+    #[test]
+    fn parses_top_level_sections() {
+        let input = "# First Top Level
+# Second Top Level";
+        let (_, sections) = JournalEntryParser::new(input)
+            .parse()
+            .expect("unable to parse input");
+
+        let expected = vec![
+            Section {
+                title: String::from("First Top Level"),
+                level: SectionLevel::H1,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+            Section {
+                title: String::from("Second Top Level"),
+                level: SectionLevel::H1,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+        ];
+
+        assert_eq!(sections, expected)
+    }
+
+    #[test]
+    fn parses_top_level_sections_where_sections_have_reverse_ordering() {
+        let input = "### First Top Level
+## Second Top Level
+# Third Top Level";
+        let (_, sections) = JournalEntryParser::new(input)
+            .parse()
+            .expect("unable to parse input");
+
+        let expected = vec![
+            Section {
+                title: String::from("First Top Level"),
+                level: SectionLevel::H3,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+            Section {
+                title: String::from("Second Top Level"),
+                level: SectionLevel::H2,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+            Section {
+                title: String::from("Third Top Level"),
+                level: SectionLevel::H1,
+                body: String::from(""),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+        ];
+
+        assert_eq!(sections, expected)
+    }
+
+    #[test]
+    fn parses_top_level_sections_with_nested_sections() {
+        let input = "# First Top Level
+Test
+## First Nested
+Test
+### Inner Nested
+Test
+## Second Nested
+Test
+# Second Top Level
+Test";
+        let (_, sections) = JournalEntryParser::new(input)
+            .parse()
+            .expect("unable to parse input");
+
+        let expected = vec![
+            Section {
+                title: String::from("First Top Level"),
+                level: SectionLevel::H1,
+                body: String::from("Test"),
+                metadata: HashMap::new(),
+                sections: vec![
+                    Section {
+                        title: String::from("First Nested"),
+                        level: SectionLevel::H2,
+                        body: String::from("Test"),
+                        metadata: HashMap::new(),
+                        sections: vec![Section {
+                            title: String::from("Inner Nested"),
+                            level: SectionLevel::H3,
+                            body: String::from("Test"),
+                            metadata: HashMap::new(),
+                            sections: Vec::new(),
+                        }],
+                    },
+                    Section {
+                        title: String::from("Second Nested"),
+                        level: SectionLevel::H2,
+                        body: String::from("Test"),
+                        metadata: HashMap::new(),
+                        sections: Vec::new(),
+                    },
+                ],
+            },
+            Section {
+                title: String::from("Second Top Level"),
+                level: SectionLevel::H1,
+                body: String::from("Test"),
+                metadata: HashMap::new(),
+                sections: Vec::new(),
+            },
+        ];
+
+        assert_eq!(sections, expected)
     }
 }

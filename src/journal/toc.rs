@@ -5,23 +5,21 @@ use std::{fmt::Display, fs::File, io::Read, path::PathBuf};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt},
-    config::Config,
     error::{Error, Result},
 };
 
-#[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableOfContents {
-    /// An optional title for the TOC.
+    /// An optional title for the TOC.:SMO
     pub title: Option<String>,
     /// All items making up the TOC.
     pub items: Vec<TOCItem>,
 }
 
 impl TableOfContents {
-    /// Load the table of contents from JOURNAL.md relative to the config's source root.
-    pub fn load(config: &Config) -> Result<Self> {
-        let journal_path = config.journal.source.join("JOURNAL.md");
+    /// Load the table of contents from JOURNAL.md relative to the provided path.
+    pub fn load(source_path: PathBuf) -> Result<Self> {
+        let journal_path = source_path.join("JOURNAL.md");
         let mut buffer = String::new();
 
         File::open(journal_path)
@@ -126,11 +124,14 @@ impl<'a> TOCParser<'a> {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     // NOTE: Skip the start tag that was peeked.
                     self.parser.next_event();
-                    let events: Vec<_> = self.parser.collect_until(|event| {
-                        matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
-                    });
+                    let heading = self
+                        .parser
+                        .iter_until_and_consume(|event| {
+                            matches!(event, Event::End(Tag::Heading(HeadingLevel::H1, ..)))
+                        })
+                        .stringify()?;
 
-                    return Ok(Some(events.iter().stringify()?));
+                    return Ok(Some(heading));
                 }
                 Some(Event::Html(_)) => {
                     self.parser.next_event(); // Skip HTML, such as comments.
@@ -147,14 +148,17 @@ impl<'a> TOCParser<'a> {
             let title = match self.parser.peek_event() {
                 Some(Event::Start(Tag::Heading(HeadingLevel::H1, ..))) => {
                     self.parser.next_event();
-                    let events: Vec<_> = self.parser.collect_until(|event| {
-                        matches! {
-                            event,
-                            Event::End(Tag::Heading(HeadingLevel::H1, .. ))
-                        }
-                    });
+                    let heading = self
+                        .parser
+                        .iter_until_and_consume(|event| {
+                            matches! {
+                                event,
+                                Event::End(Tag::Heading(HeadingLevel::H1, .. ))
+                            }
+                        })
+                        .stringify()?;
 
-                    Some(events.iter().stringify()?)
+                    Some(heading)
                 }
                 Some(_) => None,
                 None => break, // End of input, end parsing.
@@ -246,8 +250,7 @@ impl<'a> TOCParser<'a> {
         let href = href.replace("%20", " ");
         let name: String = self
             .parser
-            .collect_until::<Vec<_>>(|event| matches! {event, Event::End(Tag::Link(..))})
-            .into_iter()
+            .iter_until_and_consume(|event| matches! {event, Event::End(Tag::Link(..))})
             .map(|event| match event {
                 Event::SoftBreak => Event::Text(" ".into()),
                 other => other,

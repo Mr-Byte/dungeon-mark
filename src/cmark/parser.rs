@@ -1,6 +1,6 @@
 use pulldown_cmark::{Event, OffsetIter, Options, Parser};
 
-use std::iter::Peekable;
+use std::{fmt::Display, iter::Peekable};
 
 pub struct CMarkParser<'a> {
     source: &'a str,
@@ -46,17 +46,30 @@ impl<'a> CMarkParser<'a> {
         })
     }
 
-    /// Consumes all events up to and including the delimeter and returns all events before the matched delimeter.
-    pub fn collect_until<B>(&mut self, delimeter: impl Fn(&Event<'a>) -> bool) -> B
-    where
-        B: FromIterator<Event<'a>>,
-    {
-        std::iter::from_fn(|| match self.next_event() {
+    /// Iterates over the stream, returning any events where `delimeter` returns `false`.
+    /// Once `delimeter` returns `true` the iterator ends, but the matched event is not consumed.
+    pub fn iter_until(
+        &mut self,
+        delimeter: impl Fn(&Event<'a>) -> bool + 'a,
+    ) -> impl Iterator<Item = Event<'a>> + '_ {
+        std::iter::from_fn(move || match self.peek_event() {
             Some(event) if delimeter(&event) => None,
-            Some(event) => Some(event),
+            Some(_) => self.next_event(),
             None => None,
         })
-        .collect()
+    }
+
+    /// Iterates over the stream, returning any events where `delimeter` returns `false`.
+    /// Once `delimeter` returns `true` the iterator ends, but the matched event is consumed, but not included.
+    pub fn iter_until_and_consume(
+        &mut self,
+        delimeter: impl Fn(&Event<'a>) -> bool + 'a,
+    ) -> impl Iterator<Item = Event<'a>> + '_ {
+        std::iter::from_fn(move || match self.next_event() {
+            Some(event) if delimeter(&event) => None,
+            None => None,
+            event => event,
+        })
     }
 }
 
@@ -64,4 +77,10 @@ impl<'a> CMarkParser<'a> {
 pub struct Position {
     pub line: usize,
     pub column: usize,
+}
+
+impl Display for Position {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "line: {}, column: {}", self.line, self.column)
+    }
 }
