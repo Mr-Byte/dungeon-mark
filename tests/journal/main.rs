@@ -31,7 +31,7 @@ fn it_loads_the_journal_as_expected() {
 
 #[test]
 fn it_loads_custom_configuration() {
-    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[derive(Debug, Deserialize, PartialEq, Eq, Default)]
     #[serde(rename_all = "kebab-case")]
     struct TestData {
         test_item: String,
@@ -45,8 +45,7 @@ fn it_loads_custom_configuration() {
     let actual = journal
         .config
         .get("test-section")
-        .expect("should be deserializable")
-        .expect("should be set");
+        .expect("should be deserializable");
 
     assert_eq!(expected, actual);
 }

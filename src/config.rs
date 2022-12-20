@@ -20,6 +20,7 @@ pub struct Config {
 }
 
 impl Config {
+    /// Load the config file from the specified path.
     pub fn load(path: impl AsRef<Path>) -> Result<Config> {
         let mut buffer = String::new();
         File::open(path)
@@ -30,17 +31,23 @@ impl Config {
         Config::from_str(&buffer)
     }
 
-    pub fn get<'de, D: Deserialize<'de>>(&self, key: &str) -> Result<Option<D>> {
-        let result = self
-            .rest
-            .get(key)
-            .cloned()
-            .map(Value::try_into)
-            .transpose()?;
+    /// Attempt to retrieve the specified key and deserialize it to the target type.
+    /// The target type must implement `Default` which will be returned in the event
+    /// that the specified key could not be found.
+    pub fn get<'de, D>(&self, key: &str) -> Result<D>
+    where
+        D: Deserialize<'de> + Default,
+    {
+        let Some(item) = self.rest.get(key).cloned() else {
+            return Ok(Default::default());
+        };
 
-        Ok(result)
+        let item = item.try_into()?;
+
+        Ok(item)
     }
 
+    /// TODO: Do I actually need to expose this?
     pub fn set<S: Serialize>(&mut self, key: impl Into<String>, item: S) -> Result<()> {
         let serialized = Value::try_from(item)?;
         self.rest.insert(key.into(), serialized);

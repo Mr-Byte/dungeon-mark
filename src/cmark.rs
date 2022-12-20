@@ -2,12 +2,11 @@
 
 mod parser;
 
-use std::borrow::Borrow;
-
 pub use parser::*;
 
 use pulldown_cmark::Event;
 use pulldown_cmark_to_cmark::cmark;
+use std::borrow::Borrow;
 
 use crate::error::Result;
 
