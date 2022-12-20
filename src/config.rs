@@ -40,6 +40,25 @@ impl Default for Config {
     }
 }
 
+impl Serialize for Config {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::Error;
+
+        let journal_config = Value::try_from(&self.journal).map_err(S::Error::custom)?;
+
+        let mut table = self.rest.clone();
+        let table = table
+            .as_table_mut()
+            .ok_or_else(|| S::Error::custom("config must always be a table"))?;
+
+        table.insert(String::from("journal"), journal_config);
+        table.serialize(serializer)
+    }
+}
+
 impl<'de> Deserialize<'de> for Config {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
