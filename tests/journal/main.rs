@@ -1,13 +1,18 @@
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use dungeon_mark::journal::{DMJournal, JournalEntry, JournalItem, Section, SectionLevel};
+use serde::Deserialize;
 
-#[test]
-fn it_loads_the_journal_as_expected() {
+fn test_dir() -> PathBuf {
     let mut current_dir = PathBuf::from_str(file!()).expect("unable to get path");
     current_dir.pop();
 
-    let journal = DMJournal::load(current_dir).expect("failed to load");
+    current_dir
+}
+
+#[test]
+fn it_loads_the_journal_as_expected() {
+    let journal = DMJournal::load(test_dir()).expect("failed to load");
     let expected = vec![JournalItem::Entry(JournalEntry {
         name: String::from("Entry 1"),
         body: None,
@@ -22,4 +27,26 @@ fn it_loads_the_journal_as_expected() {
     })];
 
     assert_eq!(expected, journal.journal.items);
+}
+
+#[test]
+fn it_loads_custom_configuration() {
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
+    #[serde(rename_all = "kebab-case")]
+    struct TestData {
+        test_item: String,
+    }
+
+    let journal = DMJournal::load(test_dir()).expect("failed to load");
+    let expected = TestData {
+        test_item: String::from("test"),
+    };
+
+    let actual = journal
+        .config
+        .get("test-section")
+        .expect("should be deserializable")
+        .expect("should be set");
+
+    assert_eq!(expected, actual);
 }

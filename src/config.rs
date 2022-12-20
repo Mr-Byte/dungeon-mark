@@ -16,7 +16,7 @@ pub struct Config {
     pub journal: JournalConfig,
 
     #[serde(flatten)]
-    rest: Value,
+    rest: Table,
 }
 
 impl Config {
@@ -29,13 +29,31 @@ impl Config {
 
         Config::from_str(&buffer)
     }
+
+    pub fn get<'de, D: Deserialize<'de>>(&self, key: &str) -> Result<Option<D>> {
+        let result = self
+            .rest
+            .get(key)
+            .cloned()
+            .map(Value::try_into)
+            .transpose()?;
+
+        Ok(result)
+    }
+
+    pub fn set<S: Serialize>(&mut self, key: impl Into<String>, item: S) -> Result<()> {
+        let serialized = Value::try_from(item)?;
+        self.rest.insert(key.into(), serialized);
+
+        Ok(())
+    }
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             journal: JournalConfig::default(),
-            rest: Value::Table(Table::default()),
+            rest: Table::default(),
         }
     }
 }
