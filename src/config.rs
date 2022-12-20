@@ -10,12 +10,12 @@ use toml::{value::Table, Value};
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// Configuration for the journal itself.
     pub journal: JournalConfig,
 
-    /// Any remaining configuration for renderers and preprocessors.
+    #[serde(flatten)]
     rest: Value,
 }
 
@@ -37,52 +37,6 @@ impl Default for Config {
             journal: JournalConfig::default(),
             rest: Value::Table(Table::default()),
         }
-    }
-}
-
-impl Serialize for Config {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::Error;
-
-        let journal_config = Value::try_from(&self.journal).map_err(S::Error::custom)?;
-
-        let mut table = self.rest.clone();
-        let table = table
-            .as_table_mut()
-            .ok_or_else(|| S::Error::custom("config must always be a table"))?;
-
-        table.insert(String::from("journal"), journal_config);
-        table.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Config {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error;
-
-        let raw = Value::deserialize(deserializer)?;
-        let Value::Table(mut table) = raw else {
-            return Err(D::Error::custom("journal.toml must always be a toml table"));
-        };
-
-        let journal: JournalConfig = table
-            .remove("journal")
-            .map(|journal| journal.try_into().map_err(D::Error::custom))
-            .transpose()?
-            .unwrap_or_default();
-
-        let config = Config {
-            journal,
-            rest: Value::Table(table),
-        };
-
-        Ok(config)
     }
 }
 
