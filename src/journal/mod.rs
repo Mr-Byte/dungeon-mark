@@ -18,8 +18,8 @@ pub struct DMJournal {
     /// An in-memory representation of the journal.
     pub journal: Journal,
 
-    /// Preprocessors applied to the entirety of a journal.
-    _preprocessors: Vec<Box<dyn Transformer>>,
+    /// Transformers applied to the entirety of a journal.
+    _transformers: Vec<Box<dyn Transformer>>,
     /// Renderers used to output the contents of a journal in various formats.
     _renderers: Vec<Box<dyn Renderer>>,
 }
@@ -40,13 +40,15 @@ impl DMJournal {
 
     pub fn load_with_config(root: impl Into<PathBuf>, config: Config) -> Result<DMJournal> {
         let root = root.into();
-        let journal = Journal::load(&root, config.clone())?;
+        // TODO: Load and configure preprocessors from config.
+        let preprocessors = Vec::new();
 
+        let journal = Journal::load(&root, config.clone(), preprocessors)?;
         let journal = DMJournal {
             root,
             config,
             journal,
-            _preprocessors: Vec::new(),
+            _transformers: Vec::new(),
             _renderers: Vec::new(),
         };
 

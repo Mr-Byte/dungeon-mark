@@ -116,14 +116,14 @@ Following text"#;
 
         let original_journal = Journal {
             items: vec![JournalItem::Entry(JournalEntry {
-                name: String::from("test"),
+                title: String::from("test"),
                 body: None,
                 sections: vec![Section {
                     title: String::from("test"),
                     body: String::from(section_body),
                     ..Default::default()
                 }],
-                entry_path: None,
+                path: None,
             })],
         };
 
@@ -147,7 +147,7 @@ Following text"#;
 
         let expected_journal = Journal {
             items: vec![JournalItem::Entry(JournalEntry {
-                name: String::from("test"),
+                title: String::from("test"),
                 body: None,
                 sections: vec![Section {
                     title: String::from("test"),
@@ -155,7 +155,7 @@ Following text"#;
                     metadata,
                     ..Default::default()
                 }],
-                entry_path: None,
+                path: None,
             })],
         };
 
@@ -174,14 +174,14 @@ Following text"#;
 
         let original_journal = Journal {
             items: vec![JournalItem::Entry(JournalEntry {
-                name: String::from("test"),
+                title: String::from("test"),
                 body: None,
                 sections: vec![Section {
                     title: String::from("test"),
                     body: String::from(section_body),
                     ..Default::default()
                 }],
-                entry_path: None,
+                path: None,
             })],
         };
 
@@ -196,14 +196,14 @@ Following text"#;
 
         let expected_journal = Journal {
             items: vec![JournalItem::Entry(JournalEntry {
-                name: String::from("test"),
+                title: String::from("test"),
                 body: None,
                 sections: vec![Section {
                     title: String::from("test"),
                     body: String::from(section_body),
                     ..Default::default()
                 }],
-                entry_path: None,
+                path: None,
             })],
         };
 

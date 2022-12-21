@@ -1,10 +1,11 @@
 use anyhow::Context;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt as _},
+    document::Document,
     error::Result,
 };
 
@@ -61,41 +62,27 @@ pub struct SectionMetadata {
 /// It is organized into sections based on headings.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JournalEntry {
-    // The name of the journal entry.
-    pub name: String,
+    // The title of the journal entry.
+    pub title: String,
     /// An optional top level journal entry body, which makes up any elements that preceed the first
     /// heading in the journal entry.
     pub body: Option<String>,
     /// The sections (delineated by Markdown headings) of the journal entry.
     pub sections: Vec<Section>,
     /// The location of this journal entry relative to the `JOURNAL.md` file.
-    pub entry_path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
 impl JournalEntry {
-    /// Load a journal entry relative to the `source_path`.
-    pub fn load(
-        name: String,
-        source_path: impl Into<PathBuf>,
-        entry_path: impl Into<PathBuf>,
-    ) -> Result<Self> {
-        let mut buffer = String::new();
-        let root_path = source_path.into();
-        let source_path = entry_path.into();
-        let file_path = root_path.join(&source_path);
-
-        File::open(&file_path)
-            .with_context(|| format!("Failed to open journal entry: {}", file_path.display()))?
-            .read_to_string(&mut buffer)
-            .with_context(|| format!("Failed to read journal entry: {}", file_path.display()))?;
-
-        let (body, sections) = JournalEntryParser::new(&buffer)
+    /// Create a journal entry from a doucment.
+    pub fn from_document(document: Document) -> Result<Self> {
+        let (body, sections) = JournalEntryParser::new(&document.content)
             .parse()
-            .with_context(|| format!("Unable to parse journal entry: {}", file_path.display()))?;
+            .with_context(|| format!("Unable to parse journal entry: {}", document.title))?;
 
         let entry = Self {
-            name,
-            entry_path: Some(source_path),
+            title: document.title,
+            path: Some(document.path),
             body,
             sections,
         };

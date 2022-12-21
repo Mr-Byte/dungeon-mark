@@ -14,7 +14,7 @@ fn test_dir() -> PathBuf {
 fn it_loads_the_journal_as_expected() {
     let journal = DMJournal::load(test_dir()).expect("failed to load");
     let expected = vec![JournalItem::Entry(JournalEntry {
-        name: String::from("Entry 1"),
+        title: String::from("Entry 1"),
         body: None,
         sections: vec![Section {
             title: String::from("Test Entry"),
@@ -23,7 +23,7 @@ fn it_loads_the_journal_as_expected() {
             metadata: HashMap::new(),
             sections: Vec::new(),
         }],
-        entry_path: PathBuf::from_str("./entry_1.md").ok(),
+        path: PathBuf::from_str("./entry_1.md").ok(),
     })];
 
     assert_eq!(expected, journal.journal.items);
