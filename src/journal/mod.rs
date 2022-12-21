@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{config::Config, error::Result, preprocessor::Preprocessor, renderer::Renderer};
+use crate::{config::Config, error::Result, renderer::Renderer, transform::Transformer};
 
 mod entry;
 mod journal;
@@ -19,7 +19,7 @@ pub struct DMJournal {
     pub journal: Journal,
 
     /// Preprocessors applied to the entirety of a journal.
-    _preprocessors: Vec<Box<dyn Preprocessor>>,
+    _preprocessors: Vec<Box<dyn Transformer>>,
     /// Renderers used to output the contents of a journal in various formats.
     _renderers: Vec<Box<dyn Renderer>>,
 }

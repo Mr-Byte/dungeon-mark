@@ -22,19 +22,6 @@ impl Journal {
 
         Ok(journal)
     }
-
-    pub fn for_each_mut(&mut self, func: impl FnMut(&mut JournalItem)) {
-        for_each_mut(&mut self.items, func)
-    }
-}
-
-fn for_each_mut<'a>(
-    items: impl IntoIterator<Item = &'a mut JournalItem>,
-    mut func: impl FnMut(&mut JournalItem),
-) {
-    for item in items {
-        func(item);
-    }
 }
 
 fn load_journal_items(

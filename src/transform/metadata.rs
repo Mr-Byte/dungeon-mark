@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use pulldown_cmark::{CodeBlockKind, Event, Tag};
 
-use super::Preprocessor;
+use super::Transformer;
 
 use crate::{
     cmark::{self, EventIteratorExt},
@@ -16,18 +16,18 @@ impl MetadataPreprocessor {
     const NAME: &str = "metadata";
 }
 
-impl Preprocessor for MetadataPreprocessor {
+impl Transformer for MetadataPreprocessor {
     fn name(&self) -> &str {
         Self::NAME
     }
 
-    fn run(&self, _ctx: &super::PreprocessorContext, mut journal: Journal) -> Result<Journal> {
-        journal.for_each_mut(|item| {
+    fn run(&self, _ctx: &super::TransformerContext, mut journal: Journal) -> Result<Journal> {
+        for item in &mut journal.items {
             #[allow(irrefutable_let_patterns)]
             if let JournalItem::Entry(entry) = item {
                 entry.for_each_mut(extract_metadata)
             }
-        });
+        }
 
         Ok(journal)
     }
@@ -106,7 +106,7 @@ mod test {
     use std::{path::PathBuf, str::FromStr};
 
     use super::*;
-    use crate::{config::Config, journal::JournalEntry, preprocessor::PreprocessorContext};
+    use crate::{config::Config, journal::JournalEntry, transform::TransformerContext};
 
     #[test]
     fn extracts_metadata_as_expected() {
@@ -129,7 +129,7 @@ Following text"#;
             })],
         };
 
-        let ctx = PreprocessorContext {
+        let ctx = TransformerContext {
             root: PathBuf::from_str("test").expect("should parse"),
             config: Config::default(),
         };
@@ -187,7 +187,7 @@ Following text"#;
             })],
         };
 
-        let ctx = PreprocessorContext {
+        let ctx = TransformerContext {
             root: PathBuf::from_str("test").expect("should parse"),
             config: Config::default(),
         };
