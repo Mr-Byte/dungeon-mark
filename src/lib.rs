@@ -5,7 +5,7 @@
 pub mod cmark;
 pub mod config;
 pub mod journal;
-pub mod renderer;
+pub mod render;
 pub mod transform;
 
 pub mod error {

@@ -25,7 +25,7 @@ impl Transformer for MetadataPreprocessor {
         for item in &mut journal.items {
             #[allow(irrefutable_let_patterns)]
             if let JournalItem::Entry(entry) = item {
-                entry.for_each_mut(extract_metadata)
+                entry.try_for_each_mut(extract_metadata)?;
             }
         }
 
@@ -33,7 +33,7 @@ impl Transformer for MetadataPreprocessor {
     }
 }
 
-fn extract_metadata(section: &mut Section) {
+fn extract_metadata(section: &mut Section) -> Result<()> {
     let mut body = Vec::new();
     let mut metadata = HashMap::new();
     let mut events = cmark::CMarkParser::new(&section.body);
@@ -53,8 +53,7 @@ fn extract_metadata(section: &mut Section) {
                             Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(_)))
                         }
                     })
-                    .stringify()
-                    .expect("Do I need try_for_each?");
+                    .stringify()?;
                 let section_meta = SectionMetadata { lang, data };
 
                 metadata.insert(key, section_meta);
@@ -68,7 +67,7 @@ fn extract_metadata(section: &mut Section) {
                             Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(tag))) if is_metadata_block(tag)
                         }
                     })
-                    .stringify().expect("Do I need try_for_each?");
+                    .stringify()?;
 
                 body.push(text);
             }
@@ -81,6 +80,8 @@ fn extract_metadata(section: &mut Section) {
 
     section.body = body.into_iter().collect();
     section.metadata.extend(metadata);
+
+    Ok(())
 }
 
 fn is_metadata_block(tag: &str) -> bool {

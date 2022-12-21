@@ -103,11 +103,22 @@ impl JournalEntry {
         Ok(entry)
     }
 
+    /// Iterate over a flattened representation of all sections in a journal entry, providing a mutable reference
+    /// to each entry.
     pub fn for_each_mut<F>(&mut self, mut func: F)
     where
         F: FnMut(&mut Section),
     {
         for_each_mut(&mut func, &mut self.sections)
+    }
+
+    /// Iterate over a flattened representation of all sections in a journal entry, providing a mutable reference
+    /// to each entry. Stops iterating on the first closure to return an error.
+    pub fn try_for_each_mut<F>(&mut self, mut func: F) -> Result<()>
+    where
+        F: FnMut(&mut Section) -> Result<()>,
+    {
+        try_for_each_mut(&mut func, &mut self.sections)
     }
 }
 
@@ -121,6 +132,20 @@ where
 
         func(section);
     }
+}
+
+fn try_for_each_mut<'a, I, F>(func: &mut F, sections: I) -> Result<()>
+where
+    I: IntoIterator<Item = &'a mut Section>,
+    F: FnMut(&mut Section) -> Result<()>,
+{
+    for section in sections {
+        try_for_each_mut(func, &mut section.sections)?;
+
+        func(section)?;
+    }
+
+    Ok(())
 }
 
 struct JournalEntryParser<'a> {

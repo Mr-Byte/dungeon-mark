@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{config::Config, error::Result, renderer::Renderer, transform::Transformer};
+use crate::{config::Config, error::Result, render::Renderer, transform::Transformer};
 
 mod entry;
 mod journal;
