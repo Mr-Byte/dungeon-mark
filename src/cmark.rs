@@ -5,7 +5,7 @@ mod parser;
 pub use parser::*;
 
 use pulldown_cmark::Event;
-use pulldown_cmark_to_cmark::cmark;
+use pulldown_cmark_to_cmark::{cmark_with_options, Options};
 use std::borrow::Borrow;
 
 use crate::error::Result;
@@ -23,7 +23,12 @@ where
     fn stringify(self) -> Result<String> {
         // TODO: Is there a safe default buffer capacity? Does it matter?
         let mut buffer = String::new();
-        cmark(self, &mut buffer)?;
+        let options = Options {
+            code_block_token_count: 3,
+            ..Default::default()
+        };
+
+        cmark_with_options(self, &mut buffer, options)?;
 
         Ok(buffer)
     }

@@ -8,8 +8,9 @@ use crate::{
     error::Result,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum SectionLevel {
+    #[default]
     H1 = 1,
     H2,
     H3,
@@ -35,7 +36,7 @@ impl From<HeadingLevel> for SectionLevel {
 /// Any headings that have a lower-level than the `Section` that follow the section
 /// will be nested inside this section. Any `Section` with the same level as the
 /// current section will be a sibling section in the parent `Section` or `JournalEntry`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Section {
     /// The title of the section as provided by the heading.
     pub title: String,
@@ -45,9 +46,15 @@ pub struct Section {
     /// or sibling sections.
     pub body: String,
     /// Metadata associated with a section.
-    pub metadata: HashMap<String, String>,
+    pub metadata: HashMap<String, SectionMetadata>,
     /// Any child sections that are nested below the current section.
     pub sections: Vec<Section>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SectionMetadata {
+    pub lang: String,
+    pub data: String,
 }
 
 /// A `JournalEntry` is an in-memory representation of a single Markdown file on disk.
@@ -56,7 +63,7 @@ pub struct Section {
 pub struct JournalEntry {
     // The name of the journal entry.
     pub name: String,
-    /// An optional top level journal entry body, which makes up any elementsthat preceed the first
+    /// An optional top level journal entry body, which makes up any elements that preceed the first
     /// heading in the journal entry.
     pub body: Option<String>,
     /// The sections (delineated by Markdown headings) of the journal entry.
@@ -94,6 +101,25 @@ impl JournalEntry {
         };
 
         Ok(entry)
+    }
+
+    pub fn for_each_mut<F>(&mut self, mut func: F)
+    where
+        F: FnMut(&mut Section),
+    {
+        for_each_mut(&mut func, &mut self.sections)
+    }
+}
+
+fn for_each_mut<'a, I, F>(func: &mut F, sections: I)
+where
+    I: IntoIterator<Item = &'a mut Section>,
+    F: FnMut(&mut Section),
+{
+    for section in sections {
+        for_each_mut(func, &mut section.sections);
+
+        func(section);
     }
 }
 

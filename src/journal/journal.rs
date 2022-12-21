@@ -8,7 +8,7 @@ use crate::journal::JournalEntry;
 use super::{Link, TOCItem, TableOfContents};
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Journal {
     pub items: Vec<JournalItem>,
 }
@@ -21,6 +21,19 @@ impl Journal {
         let journal = Self { items };
 
         Ok(journal)
+    }
+
+    pub fn for_each_mut(&mut self, func: impl FnMut(&mut JournalItem)) {
+        for_each_mut(&mut self.items, func)
+    }
+}
+
+fn for_each_mut<'a>(
+    items: impl IntoIterator<Item = &'a mut JournalItem>,
+    mut func: impl FnMut(&mut JournalItem),
+) {
+    for item in items {
+        func(item);
     }
 }
 
