@@ -5,18 +5,18 @@ use pulldown_cmark::{CodeBlockKind, Event, Tag};
 use super::Transformer;
 
 use crate::{
-    cmark::{self, EventIteratorExt},
+    cmark::{CMarkParser, EventIteratorExt},
     error::Result,
     journal::{Journal, JournalItem, Section, SectionMetadata},
 };
 
-pub struct MetadataPreprocessor;
+pub struct MetadataTransformer;
 
-impl MetadataPreprocessor {
+impl MetadataTransformer {
     const NAME: &str = "metadata";
 }
 
-impl Transformer for MetadataPreprocessor {
+impl Transformer for MetadataTransformer {
     fn name(&self) -> &str {
         Self::NAME
     }
@@ -36,13 +36,11 @@ impl Transformer for MetadataPreprocessor {
 fn extract_metadata(section: &mut Section) -> Result<()> {
     let mut body = Vec::new();
     let mut metadata = HashMap::new();
-    let mut events = cmark::CMarkParser::new(&section.body);
+    let mut events = CMarkParser::new(&section.body);
 
-    loop {
-        match events.peek_event() {
-            Some(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(tag))))
-                if is_metadata_block(tag) =>
-            {
+    while let Some(event) = events.peek_event() {
+        match event {
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(tag))) if is_metadata_block(tag) => {
                 let (lang, key) = parse_metadata_tag(tag);
                 events.next_event();
 
@@ -59,7 +57,7 @@ fn extract_metadata(section: &mut Section) -> Result<()> {
                 metadata.insert(key, section_meta);
                 body.push(String::from("\n\n")); // Replace the missing code block with a hard break.
             }
-            Some(_) => {
+            _ => {
                 let text = events
                     .iter_until(|event| {
                         matches! {
@@ -71,12 +69,11 @@ fn extract_metadata(section: &mut Section) -> Result<()> {
 
                 body.push(text);
             }
-            None => {
-                events.next_event();
-                break;
-            }
         }
     }
+
+    // Consume the end of the event stream.
+    events.next_event();
 
     section.body = body.into_iter().collect();
     section.metadata.extend(metadata);
@@ -135,7 +132,7 @@ Following text"#;
             config: Config::default(),
         };
 
-        let actual_journal = MetadataPreprocessor
+        let actual_journal = MetadataTransformer
             .run(&ctx, original_journal)
             .expect("journal should be preprocessed");
 
@@ -193,7 +190,7 @@ Following text"#;
             config: Config::default(),
         };
 
-        let actual_journal = MetadataPreprocessor
+        let actual_journal = MetadataTransformer
             .run(&ctx, original_journal)
             .expect("journal should be preprocessed");
 
