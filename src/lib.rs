@@ -2,13 +2,10 @@
 #![deny(clippy::all)]
 #![allow(clippy::module_inception)]
 
+pub mod build;
 pub mod cmark;
 pub mod config;
-pub mod document;
-pub mod journal;
-pub mod preprocess;
-pub mod render;
-pub mod transform;
+pub mod model;
 
 pub mod error {
     pub use anyhow::{Error, Result};

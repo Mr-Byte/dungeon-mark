@@ -7,7 +7,7 @@ use super::Transformer;
 use crate::{
     cmark::{CMarkParser, EventIteratorExt},
     error::Result,
-    journal::{Journal, JournalItem, Section, SectionMetadata},
+    model::journal::{Journal, JournalItem, Section, SectionMetadata},
 };
 
 pub struct MetadataTransformer;
@@ -101,10 +101,12 @@ fn parse_metadata_tag(tag: &str) -> (String, String) {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use std::{path::PathBuf, str::FromStr};
 
-    use super::*;
-    use crate::{config::Config, journal::JournalEntry, transform::TransformerContext};
+    use crate::{
+        build::transform::TransformerContext, config::Config, model::journal::JournalEntry,
+    };
 
     #[test]
     fn extracts_metadata_as_expected() {

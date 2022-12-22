@@ -5,8 +5,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt as _},
-    document::Document,
-    error::Result,
+    error::{Error, Result},
+    model::document::Document,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -74,22 +74,6 @@ pub struct JournalEntry {
 }
 
 impl JournalEntry {
-    /// Create a journal entry from a doucment.
-    pub fn from_document(document: Document) -> Result<Self> {
-        let (body, sections) = JournalEntryParser::new(&document.content)
-            .parse()
-            .with_context(|| format!("Unable to parse journal entry: {}", document.title))?;
-
-        let entry = Self {
-            title: document.title,
-            path: Some(document.path),
-            body,
-            sections,
-        };
-
-        Ok(entry)
-    }
-
     /// Iterate over a flattened representation of all sections in a journal entry, providing a mutable reference
     /// to each entry.
     pub fn for_each_mut<F>(&mut self, mut func: F)
@@ -133,6 +117,25 @@ where
     }
 
     Ok(())
+}
+
+impl TryFrom<Document> for JournalEntry {
+    type Error = Error;
+
+    fn try_from(document: Document) -> Result<Self, Self::Error> {
+        let (body, sections) = JournalEntryParser::new(&document.content)
+            .parse()
+            .with_context(|| format!("Unable to parse journal entry: {}", document.title))?;
+
+        let entry = Self {
+            title: document.title,
+            path: Some(document.path),
+            body,
+            sections,
+        };
+
+        Ok(entry)
+    }
 }
 
 struct JournalEntryParser<'a> {

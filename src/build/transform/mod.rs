@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::{config::Config, error::Result, journal::Journal};
+use crate::{config::Config, error::Result, model::journal::Journal};
 
 mod metadata;
 

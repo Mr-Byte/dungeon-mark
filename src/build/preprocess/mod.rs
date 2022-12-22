@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, path::PathBuf};
 
-use crate::{config::Config, document::Document, error::Result};
+use crate::{config::Config, error::Result, model::document::Document};
 
 /// A preprocessor takes an unparsed CommonMark file and applies transforms to the document
 /// prior to it being fed through the journal parsing stage.
