@@ -178,7 +178,7 @@ impl JournalBuilder {
     }
 
     fn render(&self, journal: Journal) -> Result<()> {
-        let ctx = RenderContext;
+        let ctx = RenderContext::new(self.root.clone(), self.config.clone());
 
         // TODO: Parallelize renderers and let them all run to completion or error.
         for renderer in &self.renderers {

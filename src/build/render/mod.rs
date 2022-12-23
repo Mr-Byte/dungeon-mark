@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
-use crate::{error::Result, model::journal::Journal};
+use crate::{config::Config, error::Result, model::journal::Journal};
 
 pub trait Renderer {
     fn name(&self) -> &str;
@@ -10,4 +12,13 @@ pub trait Renderer {
 
 #[non_exhaustive]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RenderContext;
+pub struct RenderContext {
+    pub root: PathBuf,
+    pub config: Config,
+}
+
+impl RenderContext {
+    pub fn new(root: PathBuf, config: Config) -> Self {
+        Self { root, config }
+    }
+}
