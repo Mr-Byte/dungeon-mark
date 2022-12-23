@@ -5,9 +5,9 @@ pub mod transform;
 use std::path::{Path, PathBuf};
 
 use self::{
-    preprocess::{Preprocessor, PreprocessorContext},
+    preprocess::{directive::DirectivePreprocessor, Preprocessor, PreprocessorContext},
     render::{RenderContext, Renderer},
-    transform::{Transformer, TransformerContext},
+    transform::{metadata::MetadataTransformer, Transformer, TransformerContext},
 };
 use crate::{
     config::Config,
@@ -67,7 +67,11 @@ impl JournalBuilder {
         self
     }
 
-    pub fn build(self) -> Result<()> {
+    pub fn build(mut self) -> Result<()> {
+        self.load_preprocessors();
+        self.load_transformers();
+        self.load_renderers();
+
         let journal = self.load_journal()?;
         let journal = self.preprocess(journal)?;
         let journal = self.parse_items(journal)?;
@@ -78,6 +82,22 @@ impl JournalBuilder {
 }
 
 impl JournalBuilder {
+    fn load_preprocessors(&mut self) {
+        self.with_preprocessor(DirectivePreprocessor::new());
+
+        // TODO: Load additional preprocessors.
+    }
+
+    fn load_transformers(&mut self) {
+        self.with_transformer(MetadataTransformer::new());
+
+        // TODO: Load additional transformers.
+    }
+
+    fn load_renderers(&mut self) {
+        // TODO: Load renderers and their configuration.
+    }
+
     fn load_journal(&self) -> Result<Journal> {
         let items = self.load_items(&self.table_of_contents.items)?;
         let journal = Journal {
@@ -127,7 +147,6 @@ impl JournalBuilder {
                 preprocessor.run(&ctx, journal)
             })
     }
-
     fn parse_items(&self, journal: Journal) -> Result<Journal> {
         let items = journal
             .items

@@ -13,12 +13,14 @@ use crate::{
 pub struct MetadataTransformer;
 
 impl MetadataTransformer {
-    const NAME: &str = "metadata";
+    pub(crate) fn new() -> Self {
+        Self
+    }
 }
 
 impl Transformer for MetadataTransformer {
     fn name(&self) -> &str {
-        Self::NAME
+        "metadata"
     }
 
     fn run(&self, _ctx: &super::TransformerContext, mut journal: Journal) -> Result<Journal> {

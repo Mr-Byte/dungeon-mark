@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::{config::Config, error::Result, model::journal::Journal};
 
-mod metadata;
+pub(crate) mod metadata;
 
 pub trait Transformer {
     fn name(&self) -> &str;

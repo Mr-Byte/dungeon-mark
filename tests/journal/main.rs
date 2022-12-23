@@ -17,13 +17,19 @@ fn test_dir() -> PathBuf {
 
 type JournalCell = Rc<RefCell<Option<Journal>>>;
 
+#[derive(Clone)]
 struct TestRenderer(JournalCell);
 
 impl TestRenderer {
-    fn new() -> (Self, JournalCell) {
+    fn new() -> Self {
         let cell = JournalCell::default();
+        Self(cell)
+    }
+}
 
-        (Self(cell.clone()), cell)
+impl TestRenderer {
+    fn result(&self) -> Journal {
+        self.0.borrow_mut().take().expect("result was not set")
     }
 }
 
@@ -41,15 +47,13 @@ impl Renderer for TestRenderer {
 
 #[test]
 fn it_loads_the_journal_as_expected() {
-    let (renderer, journal) = TestRenderer::new();
+    let renderer = TestRenderer::new();
     let mut journal_builder = JournalBuilder::load(test_dir()).expect("failed to load journal");
 
-    journal_builder.with_renderer(renderer);
+    journal_builder.with_renderer(renderer.clone());
     journal_builder.build().expect("failed to build journal");
 
-    let Some(journal) = journal.borrow().clone() else {
-        panic!("journal was not set")
-    };
+    let journal = renderer.result();
 
     let expected = vec![JournalItem::Entry(JournalEntry {
         title: String::from("Entry 1"),
