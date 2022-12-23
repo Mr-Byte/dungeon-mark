@@ -117,6 +117,7 @@ This is test data
 Following text"#;
 
         let original_journal = Journal {
+            title: None,
             items: vec![JournalItem::Entry(JournalEntry {
                 title: String::from("test"),
                 body: None,
@@ -148,6 +149,7 @@ Following text"#;
         );
 
         let expected_journal = Journal {
+            title: None,
             items: vec![JournalItem::Entry(JournalEntry {
                 title: String::from("test"),
                 body: None,
@@ -175,6 +177,7 @@ This is test data
 Following text"#;
 
         let original_journal = Journal {
+            title: None,
             items: vec![JournalItem::Entry(JournalEntry {
                 title: String::from("test"),
                 body: None,
@@ -197,6 +200,7 @@ Following text"#;
             .expect("journal should be preprocessed");
 
         let expected_journal = Journal {
+            title: None,
             items: vec![JournalItem::Entry(JournalEntry {
                 title: String::from("test"),
                 body: None,

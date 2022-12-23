@@ -1,12 +1,11 @@
 use anyhow::Context;
 use pulldown_cmark::{Event, HeadingLevel, Tag};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use crate::{
     cmark::{CMarkParser, EventIteratorExt as _},
-    error::{Error, Result},
-    model::document::Document,
+    error::Result,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -60,7 +59,7 @@ pub struct SectionMetadata {
 
 /// A `JournalEntry` is an in-memory representation of a single Markdown file on disk.
 /// It is organized into sections based on headings.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JournalEntry {
     // The title of the journal entry.
     pub title: String,
@@ -74,6 +73,39 @@ pub struct JournalEntry {
 }
 
 impl JournalEntry {
+    pub fn load(
+        title: String,
+        source_path: impl Into<PathBuf>,
+        path: impl Into<PathBuf>,
+    ) -> Result<JournalEntry> {
+        let source_path = source_path.into();
+        let path = path.into();
+        let file_path = source_path.join(&path);
+        let body = fs::read_to_string(&file_path)
+            .with_context(|| format!("Failed to open journal entry: {}", file_path.display()))?;
+
+        let document = Self {
+            title,
+            path: Some(path),
+            body: Some(body),
+            sections: Vec::new(),
+        };
+
+        Ok(document)
+    }
+
+    pub fn parse(mut self) -> Result<JournalEntry> {
+        let Some(body) = self.body else {
+            return Ok(self);
+        };
+
+        let parser = JournalEntryParser::new(&body);
+        let (body, sections) = parser.parse()?;
+        self.sections.extend(sections);
+
+        Ok(Self { body, ..self })
+    }
+
     /// Iterate over a flattened representation of all sections in a journal entry, providing a mutable reference
     /// to each entry.
     pub fn for_each_mut<F>(&mut self, mut func: F)
@@ -117,25 +149,6 @@ where
     }
 
     Ok(())
-}
-
-impl TryFrom<Document> for JournalEntry {
-    type Error = Error;
-
-    fn try_from(document: Document) -> Result<Self, Self::Error> {
-        let (body, sections) = JournalEntryParser::new(&document.content)
-            .parse()
-            .with_context(|| format!("Unable to parse journal entry: {}", document.title))?;
-
-        let entry = Self {
-            title: document.title,
-            path: Some(document.path),
-            body,
-            sections,
-        };
-
-        Ok(entry)
-    }
 }
 
 struct JournalEntryParser<'a> {
@@ -254,22 +267,26 @@ mod test {
     #[test]
     fn parses_top_level_body() {
         let input = "Top level body.\nWith multiple lines.\n\nIncluding heard breaks.";
-        let (body, _) = JournalEntryParser::new(input)
-            .parse()
-            .expect("unable to parse input");
+        let entry = JournalEntry {
+            body: Some(String::from(input)),
+            ..Default::default()
+        };
+        let entry = entry.parse().expect("should parse");
 
         let expected = Some(String::from(input));
 
-        assert_eq!(body, expected)
+        assert_eq!(expected, entry.body);
     }
 
     #[test]
     fn parses_top_level_sections() {
         let input = "# First Top Level
 # Second Top Level";
-        let (_, sections) = JournalEntryParser::new(input)
-            .parse()
-            .expect("unable to parse input");
+        let entry = JournalEntry {
+            body: Some(String::from(input)),
+            ..Default::default()
+        };
+        let entry = entry.parse().expect("should parse");
 
         let expected = vec![
             Section {
@@ -288,7 +305,7 @@ mod test {
             },
         ];
 
-        assert_eq!(sections, expected)
+        assert_eq!(expected, entry.sections);
     }
 
     #[test]
@@ -296,9 +313,11 @@ mod test {
         let input = "### First Top Level
 ## Second Top Level
 # Third Top Level";
-        let (_, sections) = JournalEntryParser::new(input)
-            .parse()
-            .expect("unable to parse input");
+        let entry = JournalEntry {
+            body: Some(String::from(input)),
+            ..Default::default()
+        };
+        let entry = entry.parse().expect("should parse");
 
         let expected = vec![
             Section {
@@ -324,7 +343,7 @@ mod test {
             },
         ];
 
-        assert_eq!(sections, expected)
+        assert_eq!(expected, entry.sections);
     }
 
     #[test]
@@ -332,9 +351,11 @@ mod test {
         let input = "## First Top Level
 ## Second Top Level
 ## Third Top Level";
-        let (_, sections) = JournalEntryParser::new(input)
-            .parse()
-            .expect("unable to parse input");
+        let entry = JournalEntry {
+            body: Some(String::from(input)),
+            ..Default::default()
+        };
+        let entry = entry.parse().expect("should parse");
 
         let expected = vec![
             Section {
@@ -360,7 +381,7 @@ mod test {
             },
         ];
 
-        assert_eq!(sections, expected)
+        assert_eq!(expected, entry.sections);
     }
 
     #[test]
@@ -375,9 +396,11 @@ Test
 Test
 # Second Top Level
 Test";
-        let (_, sections) = JournalEntryParser::new(input)
-            .parse()
-            .expect("unable to parse input");
+        let entry = JournalEntry {
+            body: Some(String::from(input)),
+            ..Default::default()
+        };
+        let entry = entry.parse().expect("should parse");
 
         let expected = vec![
             Section {
@@ -417,6 +440,6 @@ Test";
             },
         ];
 
-        assert_eq!(sections, expected)
+        assert_eq!(expected, entry.sections);
     }
 }

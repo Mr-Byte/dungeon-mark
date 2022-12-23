@@ -1,8 +1,7 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::File,
-    io::Read,
+    fs,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -22,13 +21,13 @@ pub struct Config {
 impl Config {
     /// Load the config file from the specified path.
     pub fn load(path: impl AsRef<Path>) -> Result<Config> {
-        let mut buffer = String::new();
-        File::open(path)
-            .with_context(|| "Failed to open config file")?
-            .read_to_string(&mut buffer)
-            .with_context(|| "Failed to read config file")?;
+        let path = path.as_ref().join("journal.toml");
+        let config: Self = fs::read_to_string(path)
+            .with_context(|| "Failed to open journal.toml")?
+            .parse()
+            .with_context(|| "Failed to deserialize journal.toml")?;
 
-        Config::from_str(&buffer)
+        Ok(config)
     }
 
     /// Attempt to retrieve the specified key and deserialize it to the target type.

@@ -20,3 +20,9 @@ pub struct TransformerContext {
 
     pub config: Config,
 }
+
+impl TransformerContext {
+    pub(crate) fn new(root: PathBuf, config: Config) -> TransformerContext {
+        TransformerContext { root, config }
+    }
+}

@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::error::Result;
+use crate::{error::Result, model::journal::Journal};
 
 pub trait Renderer {
     fn name(&self) -> &str;
 
-    fn render(&self, ctx: &RenderContext) -> Result<()>;
+    fn render(&self, ctx: &RenderContext, journal: &Journal) -> Result<()>;
 }
 
 #[non_exhaustive]

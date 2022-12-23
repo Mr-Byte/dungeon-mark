@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::{borrow::Borrow, path::PathBuf};
+use std::path::PathBuf;
 
-use crate::{config::Config, error::Result, model::document::Document};
+use crate::{config::Config, error::Result, model::journal::Journal};
 
-/// A preprocessor takes an unparsed CommonMark file and applies transforms to the document
-/// prior to it being fed through the journal parsing stage.
+/// A preprocessor will take a journal with unparsed entries (all contents are in the body, no sections)
+/// and transforms that journal prior to running it through the parsing stage.
 pub trait Preprocessor {
     fn name(&self) -> &str;
 
-    fn run(&self, ctx: &PreprocessorContext, document: Document) -> Result<Document>;
+    fn run(&self, ctx: &PreprocessorContext, journal: Journal) -> Result<Journal>;
 }
 
 #[non_exhaustive]
@@ -21,18 +21,8 @@ pub struct PreprocessorContext {
     pub config: Config,
 }
 
-pub(crate) trait PreprocessorExt {
-    fn run(self, ctx: &PreprocessorContext, document: Document) -> Result<Document>;
-}
-
-impl<I, P> PreprocessorExt for I
-where
-    I: Iterator<Item = P>,
-    P: Borrow<Box<dyn Preprocessor>>,
-{
-    fn run(mut self, ctx: &PreprocessorContext, document: Document) -> Result<Document> {
-        self.try_fold(document, |document, preprocessor| {
-            preprocessor.borrow().run(ctx, document)
-        })
+impl PreprocessorContext {
+    pub(crate) fn new(root: PathBuf, config: Config) -> Self {
+        Self { root, config }
     }
 }
