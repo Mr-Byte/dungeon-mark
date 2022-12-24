@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
-use toml::{value::Table, Value};
+use toml::value::Table;
 
 use crate::error::{Error, Result};
 
@@ -44,14 +44,6 @@ impl Config {
         let item = item.try_into()?;
 
         Ok(item)
-    }
-
-    /// TODO: Do I actually need to expose this?
-    pub fn set<S: Serialize>(&mut self, key: impl Into<String>, item: S) -> Result<()> {
-        let serialized = Value::try_from(item)?;
-        self.rest.insert(key.into(), serialized);
-
-        Ok(())
     }
 }
 

@@ -17,11 +17,8 @@ fn test_dir() -> PathBuf {
     current_dir
 }
 
-type JournalCell = Rc<RefCell<Option<Journal>>>;
-type ConfigCell = Rc<RefCell<Option<Config>>>;
-
 #[derive(Clone, Default)]
-struct TestRenderer(JournalCell, ConfigCell);
+struct TestRenderer(Rc<RefCell<Option<Journal>>>, Rc<RefCell<Option<Config>>>);
 
 impl TestRenderer {
     fn journal(&self) -> Journal {
