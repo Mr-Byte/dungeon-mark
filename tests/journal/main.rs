@@ -64,6 +64,7 @@ fn it_loads_the_journal_as_expected() {
             sections: Vec::new(),
         }],
         path: PathBuf::from_str("./entry_1.md").ok(),
+        level: 1,
     })];
 
     assert_eq!(expected, journal.items);

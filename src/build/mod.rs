@@ -119,7 +119,8 @@ impl JournalBuilder {
                         continue;
                     };
 
-                    let entry = JournalEntry::load(link.name.clone(), &source_path, location)?;
+                    let entry =
+                        JournalEntry::load(link.name.clone(), &source_path, location, link.level)?;
                     items.push(JournalItem::Entry(entry));
                     let nested_items = self.load_items(&link.nested_items)?;
                     items.extend(nested_items);

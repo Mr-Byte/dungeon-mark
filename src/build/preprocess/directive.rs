@@ -136,6 +136,7 @@ mod test {
                 body: Some(String::from(input)),
                 sections: Vec::new(),
                 path: None,
+                level: 1,
             })],
         }
     }

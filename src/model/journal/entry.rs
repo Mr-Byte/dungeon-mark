@@ -70,6 +70,8 @@ pub struct JournalEntry {
     pub sections: Vec<Section>,
     /// The location of this journal entry relative to the `JOURNAL.md` file.
     pub path: Option<PathBuf>,
+    /// The nesting level of the journal entry (up to H6).
+    pub level: u8,
 }
 
 impl JournalEntry {
@@ -77,6 +79,7 @@ impl JournalEntry {
         title: String,
         source_path: impl Into<PathBuf>,
         path: impl Into<PathBuf>,
+        level: u8,
     ) -> Result<JournalEntry> {
         let source_path = source_path.into();
         let path = path.into();
@@ -89,6 +92,7 @@ impl JournalEntry {
             path: Some(path),
             body: Some(body),
             sections: Vec::new(),
+            level: level.into(),
         };
 
         Ok(document)

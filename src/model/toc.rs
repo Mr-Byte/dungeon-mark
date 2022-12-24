@@ -44,6 +44,8 @@ pub struct Link {
     pub location: Option<PathBuf>,
     /// Any table of content items nested below this link.
     pub nested_items: Vec<TOCItem>,
+    /// The nesting level of this link.
+    pub level: u8,
 }
 
 #[non_exhaustive]
@@ -169,7 +171,7 @@ impl<'a> TOCParser<'a> {
             }
 
             let items = self
-                .parse_toc_items()
+                .parse_toc_items(1u8)
                 .with_context(|| "There was an error parsing TOC entries")?;
 
             toc_items.extend(items);
@@ -178,7 +180,7 @@ impl<'a> TOCParser<'a> {
         Ok(toc_items)
     }
 
-    fn parse_toc_items(&mut self) -> Result<Vec<TOCItem>> {
+    fn parse_toc_items(&mut self, level: u8) -> Result<Vec<TOCItem>> {
         let mut items = Vec::new();
 
         loop {
@@ -187,7 +189,7 @@ impl<'a> TOCParser<'a> {
                 Some(Event::Start(Tag::Item)) => {
                     self.parser.next_event();
 
-                    let item = self.parse_toc_item()?;
+                    let item = self.parse_toc_item(level)?;
                     items.push(item);
                 }
                 Some(Event::Start(Tag::List(..))) => {
@@ -198,7 +200,7 @@ impl<'a> TOCParser<'a> {
                     }
 
                     if let Some(last_item) = items.last_mut().and_then(TOCItem::maybe_link_mut) {
-                        last_item.nested_items = self.parse_toc_items()?;
+                        last_item.nested_items = self.parse_toc_items(level + 1)?;
                     }
                 }
                 Some(Event::End(Tag::List(..))) => {
@@ -228,12 +230,12 @@ impl<'a> TOCParser<'a> {
         Ok(items)
     }
 
-    fn parse_toc_item(&mut self) -> Result<TOCItem> {
+    fn parse_toc_item(&mut self, level: u8) -> Result<TOCItem> {
         loop {
             match self.parser.next_event() {
                 Some(Event::Start(Tag::Paragraph)) => continue,
                 Some(Event::Start(Tag::Link(_, href, _))) => {
-                    let link = self.parse_link(href.to_string())?;
+                    let link = self.parse_link(href.to_string(), level)?;
 
                     return Ok(TOCItem::Link(link));
                 }
@@ -246,7 +248,7 @@ impl<'a> TOCParser<'a> {
         }
     }
 
-    fn parse_link(&mut self, href: String) -> Result<Link> {
+    fn parse_link(&mut self, href: String, level: u8) -> Result<Link> {
         let href = href.replace("%20", " ");
         let name: String = self
             .parser
@@ -267,6 +269,8 @@ impl<'a> TOCParser<'a> {
             name,
             location,
             nested_items: Vec::new(),
+            // TODO: Track parent level.
+            level,
         };
 
         Ok(link)
@@ -323,11 +327,13 @@ mod test {
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::Link(Link {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -347,11 +353,13 @@ mod test {
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::Link(Link {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -372,12 +380,14 @@ mod test {
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::Separator,
             TOCItem::Link(Link {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -398,6 +408,7 @@ mod test {
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::SectionTitle(SectionTitle {
                 title: String::from("Next Section"),
@@ -406,6 +417,7 @@ mod test {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -426,11 +438,13 @@ mod test {
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::Link(Link {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -455,12 +469,15 @@ mod test {
                     name: String::from("Subentry 1"),
                     location: Some(PathBuf::from("sub_entry1.md")),
                     nested_items: Vec::new(),
+                    level: 2,
                 })],
+                level: 1,
             }),
             TOCItem::Link(Link {
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -482,6 +499,7 @@ This is a paragraph.
                 name: String::from("Entry 1"),
                 location: Some(PathBuf::from("entry1.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
             TOCItem::SectionTitle(SectionTitle {
                 title: String::from("Next Section"),
@@ -490,6 +508,7 @@ This is a paragraph.
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 1,
             }),
         ];
 
@@ -511,7 +530,9 @@ This is a paragraph.
                 name: String::from("Entry 2"),
                 location: Some(PathBuf::from("entry2.md")),
                 nested_items: Vec::new(),
+                level: 2,
             })],
+            level: 1,
         })];
 
         assert_eq!(items, expected);
@@ -526,6 +547,7 @@ This is a paragraph.
             name: String::from("Entry 1"),
             location: Some(PathBuf::from("entry1.md")),
             nested_items: Vec::new(),
+            level: 1,
         })];
 
         assert_eq!(items, expected);

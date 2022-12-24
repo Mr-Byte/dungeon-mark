@@ -128,6 +128,7 @@ Following text"#;
                     body: String::from(section_body),
                     ..Default::default()
                 }],
+                level: 1,
                 path: None,
             })],
         };
@@ -162,6 +163,7 @@ Following text"#;
                     ..Default::default()
                 }],
                 path: None,
+                level: 1,
             })],
         };
 
@@ -189,6 +191,7 @@ Following text"#;
                     ..Default::default()
                 }],
                 path: None,
+                level: 1,
             })],
         };
 
@@ -212,6 +215,7 @@ Following text"#;
                     ..Default::default()
                 }],
                 path: None,
+                level: 1,
             })],
         };
 

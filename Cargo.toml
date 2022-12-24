@@ -25,3 +25,7 @@ features = ["derive"]
 [[bin]]
 name = "dmark"
 path = "src/main.rs"
+
+[[bin]]
+name = "dmark-renderer-foundry-journal"
+path = "src/renderers/foundry-journal/main.rs"
