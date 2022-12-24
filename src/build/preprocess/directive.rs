@@ -1,6 +1,10 @@
+use std::fs;
+use std::path::PathBuf;
+
+use anyhow::Context;
 use memchr::memmem::Finder;
 
-use super::Preprocessor;
+use super::{Preprocessor, PreprocessorContext};
 use crate::error::Result;
 use crate::model::journal::{Journal, JournalEntry, JournalItem};
 
@@ -30,13 +34,13 @@ impl Preprocessor for DirectivePreprocessor {
         "directive"
     }
 
-    fn run(&self, _ctx: &super::PreprocessorContext, mut journal: Journal) -> Result<Journal> {
+    fn run(&self, ctx: &PreprocessorContext, mut journal: Journal) -> Result<Journal> {
         for item in &mut journal.items {
             let JournalItem::Entry(ref mut entry) = item else {
                 continue;
             };
 
-            self.preprocess_entry(entry)?;
+            self.preprocess_entry(ctx, entry)?;
         }
 
         Ok(journal)
@@ -44,7 +48,7 @@ impl Preprocessor for DirectivePreprocessor {
 }
 
 impl DirectivePreprocessor {
-    fn preprocess_entry(&self, entry: &mut JournalEntry) -> Result<()> {
+    fn preprocess_entry(&self, ctx: &PreprocessorContext, entry: &mut JournalEntry) -> Result<()> {
         let Some(ref body) = entry.body else {
             return Ok(());
         };
@@ -64,7 +68,7 @@ impl DirectivePreprocessor {
             }
 
             let directive = &input[start..end];
-            let replacement = preprocess_directive(entry, directive)?;
+            let replacement = preprocess_directive(ctx, entry, directive)?;
 
             processed_body.push(String::from(&input[..start]));
             processed_body.push(replacement);
@@ -78,7 +82,11 @@ impl DirectivePreprocessor {
     }
 }
 
-fn preprocess_directive(entry: &mut JournalEntry, directive: &str) -> Result<String> {
+fn preprocess_directive(
+    ctx: &PreprocessorContext,
+    entry: &mut JournalEntry,
+    directive: &str,
+) -> Result<String> {
     let Some(parsed_directive) = directive
         .strip_prefix(OPEN_SEQUENCE) else {
             anyhow::bail!("Directive must start with {{#")
@@ -90,9 +98,23 @@ fn preprocess_directive(entry: &mut JournalEntry, directive: &str) -> Result<Str
         };
 
     // Directive was a title replacement.
-    if let Some(title) = parsed_directive.strip_prefix("title ") {
-        entry.title = String::from(title);
+    if let Some(title) = parsed_directive.strip_prefix("title") {
+        entry.title = String::from(title.trim());
         return Ok(String::from(""));
+    }
+
+    if let Some(path) = parsed_directive.strip_prefix("include") {
+        let Some(ref entry_path) = entry.path else {
+            anyhow::bail!("The given journal entry has no file path and cannot have #include directives");
+        };
+
+        let path = PathBuf::from(path.trim());
+        let mut include_path = ctx.root.join(&ctx.config.journal.source).join(entry_path);
+        include_path.pop();
+        include_path.push(path);
+
+        return fs::read_to_string(&include_path)
+            .with_context(|| format!("failed to open file: {}", include_path.display()));
     }
 
     // Unmatched directive, leave it be.
@@ -103,9 +125,8 @@ fn preprocess_directive(entry: &mut JournalEntry, directive: &str) -> Result<Str
 mod test {
     use std::path::PathBuf;
 
-    use crate::{build::preprocess::PreprocessorContext, config::Config};
-
     use super::*;
+    use crate::{build::preprocess::PreprocessorContext, config::Config};
 
     fn new_journal(input: &str) -> Journal {
         Journal {
