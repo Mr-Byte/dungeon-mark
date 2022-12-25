@@ -1,0 +1,20 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+dungeon-mark = { path = "../crates/dungeon-mark" }
+
+[dev-dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[[test]]
+name = "journal_loading"
+path = "journal_loading.rs"
+
+[[test]]
+name = "config_loading"
+path = "config_loading.rs"

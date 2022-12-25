@@ -22,8 +22,8 @@ impl Config {
     /// Load the config file from the specified path.
     pub fn load(path: impl AsRef<Path>) -> Result<Config> {
         let path = path.as_ref().join("journal.toml");
-        let config: Self = fs::read_to_string(path)
-            .with_context(|| "Failed to open journal.toml")?
+        let config: Self = fs::read_to_string(&path)
+            .with_context(|| format!("Failed to open journal.toml: {}", path.display()))?
             .parse()
             .with_context(|| "Failed to deserialize journal.toml")?;
 

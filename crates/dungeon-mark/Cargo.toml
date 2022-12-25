@@ -1,0 +1,23 @@
+[package]
+name = "dungeon-mark"
+version = "0.1.0"
+authors = ["Joshua Rodgers <bytemr@gmail.com>"]
+edition = "2021"
+repository = "https://github.com/Mr-Byte/dungeon-mark"
+
+[dependencies]
+anyhow = "1.0"
+clap = "4.0"
+memchr = "2.5"
+pulldown-cmark-to-cmark = "10.0"
+serde_json = "1.0"
+toml = "0.5"
+
+[dependencies."pulldown-cmark"]
+version = "0.9"
+default-features = false
+features = ["simd"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
