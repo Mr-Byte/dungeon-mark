@@ -53,7 +53,7 @@ impl<'a> CMarkParser<'a> {
         delimeter: impl Fn(&Event<'a>) -> bool + 'a,
     ) -> impl Iterator<Item = Event<'a>> + '_ {
         std::iter::from_fn(move || match self.peek_event() {
-            Some(event) if delimeter(&event) => None,
+            Some(event) if delimeter(event) => None,
             Some(_) => self.next_event(),
             None => None,
         })

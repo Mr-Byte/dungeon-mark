@@ -46,6 +46,7 @@ dependencies = [
 name = "dmark"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "dungeon-mark",
 ]
 
@@ -61,7 +62,6 @@ name = "dungeon-mark"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
  "memchr",
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",

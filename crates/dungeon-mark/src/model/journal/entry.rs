@@ -92,7 +92,7 @@ impl JournalEntry {
             path: Some(path),
             body: Some(body),
             sections: Vec::new(),
-            level: level.into(),
+            level,
         };
 
         Ok(document)

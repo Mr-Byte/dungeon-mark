@@ -84,16 +84,13 @@ fn extract_metadata(section: &mut Section) -> Result<()> {
 }
 
 fn is_metadata_block(tag: &str) -> bool {
-    let parts: Vec<_> = tag.split(",").map(|part| part.trim()).collect();
+    let parts: Vec<_> = tag.split(',').map(|part| part.trim()).collect();
 
-    match &parts[..] {
-        [_, "metadata", _] => true,
-        _ => false,
-    }
+    matches!(&parts[..], [_, "metadata", _])
 }
 
 fn parse_metadata_tag(tag: &str) -> (String, String) {
-    let parts: Vec<_> = tag.split(",").map(|part| part.trim()).collect();
+    let parts: Vec<_> = tag.split(',').map(|part| part.trim()).collect();
     let [lang, "metadata", key] = &parts[..] else {
         unreachable!("is_metadata_block invariant was violated")
     };

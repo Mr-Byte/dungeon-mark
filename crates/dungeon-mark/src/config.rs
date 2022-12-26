@@ -9,7 +9,7 @@ use toml::value::Table;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// Configuration for the journal itself.
     pub journal: JournalConfig,
@@ -44,15 +44,6 @@ impl Config {
         let item = item.try_into()?;
 
         Ok(item)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            journal: JournalConfig::default(),
-            rest: Table::default(),
-        }
     }
 }
 

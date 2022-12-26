@@ -36,7 +36,7 @@ impl JournalBuilder {
 
     pub fn load_with_config(root: impl AsRef<Path>, config: Config) -> Result<Self> {
         let source_path = root.as_ref().join(&config.journal.source);
-        let table_of_contents = TableOfContents::load(&source_path)?;
+        let table_of_contents = TableOfContents::load(source_path)?;
         let builder = Self {
             root: root.as_ref().into(),
             config,

@@ -103,6 +103,7 @@ fn preprocess_directive(
         return Ok(String::from(""));
     }
 
+    // Directive was an include replacement.
     if let Some(path) = parsed_directive.strip_prefix("include") {
         let Some(ref entry_path) = entry.path else {
             anyhow::bail!("The given journal entry has no file path and cannot have #include directives");
@@ -118,7 +119,7 @@ fn preprocess_directive(
     }
 
     // Unmatched directive, leave it be.
-    return Ok(String::from(directive));
+    Ok(String::from(directive))
 }
 
 #[cfg(test)]
