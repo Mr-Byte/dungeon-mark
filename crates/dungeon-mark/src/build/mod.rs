@@ -2,7 +2,10 @@ pub mod preprocess;
 pub mod render;
 pub mod transform;
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use self::{
     preprocess::{directive::DirectivePreprocessor, Preprocessor, PreprocessorContext},
@@ -178,12 +181,21 @@ impl JournalBuilder {
             })
     }
 
+    // TODO: Should the determination of preprocessors and transformers be done as a part of this step?
+    // TODO: Should the journal be fully loaded and transformed for each render pass?
     fn render(&self, journal: Journal) -> Result<()> {
-        let ctx = RenderContext::new(self.root.clone(), self.config.clone());
-
         // TODO: Parallelize renderers and let them all run to completion or error.
         for renderer in &self.renderers {
-            renderer.render(&ctx, &journal)?;
+            // TODO: Should the number of renderers influence this?
+            // TODO: Should the `build` directory come from the config?
+            let destination = PathBuf::from_str("build")?.join(renderer.name());
+            let ctx = RenderContext::new(
+                self.root.clone(),
+                destination,
+                self.config.clone(),
+                journal.clone(),
+            );
+            renderer.render(ctx)?;
         }
 
         Ok(())
