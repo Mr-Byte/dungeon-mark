@@ -9,18 +9,19 @@ use crate::error::Result;
 
 pub struct CommandRenderer {
     name: String,
-    command: String,
+    command: Option<String>,
 }
 
 impl CommandRenderer {
-    pub fn new(name: String, command: String) -> Self {
+    pub fn new(name: String, command: Option<String>) -> Self {
         Self { name, command }
     }
 }
 
 impl CommandRenderer {
     fn build_command(&self, root: &Path) -> Result<Command> {
-        let mut parts = Shlex::new(&self.command);
+        let command = self.command.as_ref().unwrap_or(&self.name);
+        let mut parts = Shlex::new(command);
         let Some(bin) = parts.next() else {
             anyhow::bail!("Provided command string was empty");
         };

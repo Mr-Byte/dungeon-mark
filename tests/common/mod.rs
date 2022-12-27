@@ -4,7 +4,7 @@ use dungeon_mark::{
     error::Result,
     model::journal::Journal,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, env, path::PathBuf, rc::Rc};
 
 #[derive(Clone, Default)]
 pub struct TestRenderer(Rc<RefCell<Option<Journal>>>, Rc<RefCell<Option<Config>>>);
@@ -32,4 +32,14 @@ impl Renderer for TestRenderer {
 
         Ok(())
     }
+}
+
+pub fn test_dir() -> PathBuf {
+    let mut current_dir = env::current_dir().expect("Unable to get working directory");
+
+    if current_dir.ends_with("tests") {
+        current_dir.pop();
+    }
+
+    current_dir.join("data")
 }

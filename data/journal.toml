@@ -1,0 +1,9 @@
+[journal]
+source = "journal"
+
+[test-section]
+test-item = "test"
+
+[render]
+# TODO: Figure out a reliable way to handle integration tests with command renders.
+# For both Cargo and VS Code/Rust Analyzer

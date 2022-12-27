@@ -14,6 +14,8 @@ pub struct Config {
     /// Configuration for the journal itself.
     pub journal: JournalConfig,
 
+    pub render: RenderConfig,
+
     #[serde(flatten)]
     rest: Table,
 }
@@ -77,4 +79,18 @@ impl Default for JournalConfig {
             source: PathBuf::from("./src"),
         }
     }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct RenderConfig {
+    pub renderers: Vec<RendererConfig>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "kebab-case")]
+pub struct RendererConfig {
+    pub name: String,
+    /// Optional command, if this is not set the name will be used as a fallback for the command to run.
+    pub command: Option<String>,
 }

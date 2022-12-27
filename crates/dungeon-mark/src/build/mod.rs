@@ -9,7 +9,7 @@ use std::{
 
 use self::{
     preprocess::{directive::DirectivePreprocessor, Preprocessor, PreprocessorContext},
-    render::{RenderContext, Renderer},
+    render::{CommandRenderer, RenderContext, Renderer},
     transform::{metadata::MetadataTransformer, Transformer, TransformerContext},
 };
 use crate::{
@@ -98,7 +98,17 @@ impl JournalBuilder {
     }
 
     fn load_renderers(&mut self) {
-        // TODO: Load renderers and their configuration.
+        let mut renderers = Vec::with_capacity(self.config.render.renderers.len());
+
+        for renderer in &self.config.render.renderers {
+            let renderer = Box::new(CommandRenderer::new(
+                renderer.name.clone(),
+                renderer.command.clone(),
+            )) as Box<dyn Renderer + 'static>;
+            renderers.push(renderer);
+        }
+
+        self.renderers.extend(renderers);
     }
 
     fn load_journal(&self) -> Result<Journal> {
@@ -151,6 +161,7 @@ impl JournalBuilder {
                 preprocessor.run(&ctx, journal)
             })
     }
+
     fn parse_items(&self, journal: Journal) -> Result<Journal> {
         let items = journal
             .items
@@ -195,6 +206,7 @@ impl JournalBuilder {
                 self.config.clone(),
                 journal.clone(),
             );
+
             renderer.render(ctx)?;
         }
 

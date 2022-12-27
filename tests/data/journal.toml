@@ -1,5 +1,0 @@
-[journal]
-source = "journal"
-
-[test-section]
-test-item = "test"
