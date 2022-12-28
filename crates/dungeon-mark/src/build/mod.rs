@@ -98,9 +98,9 @@ impl JournalBuilder {
     }
 
     fn load_renderers(&mut self) {
-        let mut renderers = Vec::with_capacity(self.config.render.renderers.len());
+        let mut renderers = Vec::with_capacity(self.config.build.renderers.len());
 
-        for renderer in &self.config.render.renderers {
+        for renderer in &self.config.build.renderers {
             let renderer = Box::new(CommandRenderer::new(
                 renderer.name.clone(),
                 renderer.command.clone(),

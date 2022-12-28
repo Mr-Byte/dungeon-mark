@@ -14,7 +14,8 @@ pub struct Config {
     /// Configuration for the journal itself.
     pub journal: JournalConfig,
 
-    pub render: RenderConfig,
+    /// Configuration for the build process.
+    pub build: BuildConfig,
 
     #[serde(flatten)]
     rest: Table,
@@ -83,7 +84,7 @@ impl Default for JournalConfig {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "kebab-case")]
-pub struct RenderConfig {
+pub struct BuildConfig {
     pub renderers: Vec<RendererConfig>,
 }
 
